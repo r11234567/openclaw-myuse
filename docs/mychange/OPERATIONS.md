@@ -11,6 +11,14 @@ This runbook is for the current private working copy.
 - Private origin: private GitHub repo
 - Upstream: official OpenClaw repo
 
+## What this branch expects
+
+- Docker is the supported runtime path.
+- The Gateway and CLI come from the same image.
+- Provider config is runtime-critical, not just documentation.
+- The private repo is the place to push local branch work.
+- Upstream is the place to fetch official fixes from.
+
 ## Secrets
 
 Populate at least one working provider set before starting the gateway:
@@ -19,8 +27,18 @@ Populate at least one working provider set before starting the gateway:
 - Anthropic-compatible providers: `*_BASE_URL` + `*_API_KEY`
 - Telegram: `TELEGRAM_BOT_TOKEN`
 - Telegram access control: `TELEGRAM_ALLOWED_USER_ID`
+- Cloudflare DNS API credentials for ACME DNS validation
 
 Do not commit `.env`, `.acme.sh`, cert material, or `~/.openclaw`.
+If a secret appears in any public commit, rotate it rather than relying on `.gitignore`.
+
+The practical secret set for this branch was:
+
+- gateway token / password
+- Telegram bot token
+- Telegram allowlisted user ID
+- provider base URLs and keys
+- Cloudflare DNS API credentials
 
 ## Provider shape
 
@@ -28,6 +46,11 @@ Do not commit `.env`, `.acme.sh`, cert material, or `~/.openclaw`.
 - Anthropic-compatible providers should use the `anthropic-messages` API shape.
 - Keep model IDs aligned with the upstream provider catalog.
 - If a provider is missing or renamed, fix the config first and restart the gateway instead of trying to force a live switch through chat.
+- If a chat-driven model switch reports a generic failure, check for:
+  - stale provider env names
+  - missing auth profiles
+  - session file lock or takeover errors
+  - a restart loop caused by a missing provider key
 
 ## Build and run
 
@@ -43,7 +66,15 @@ Useful health checks:
 ```bash
 docker compose ps
 docker compose logs --tail 100 openclaw-gateway
+docker compose exec openclaw-gateway openclaw gateway status --deep
 docker system df -v
+```
+
+Useful inspection commands:
+
+```bash
+docker compose logs --tail 200 openclaw-gateway | grep -E 'Gateway failed to start|SECRETS_RELOADER_DEGRADED|session file changed|No available OAuth accounts|ready'
+docker compose exec openclaw-gateway env | grep -E 'CUSTOM_|DEEPSEEK_|MOONSHOT_|TELEGRAM_|OPENCLAW_'
 ```
 
 Cache cleanup after large rebuilds:
@@ -67,6 +98,9 @@ git rebase upstream/main
 git push origin my-changes
 ```
 
+If the branch gets behind but you do not want to merge histories, keep rebasing the private branch instead of changing `upstream`.
+The private branch should stay a clean replayable line, not a merge bucket.
+
 ## Local access
 
 The safest default is loopback-only gateway access:
@@ -75,6 +109,8 @@ The safest default is loopback-only gateway access:
 - Local nginx proxy: `127.0.0.1:8080`
 
 This keeps the Gateway off the public interface while still allowing browser access from the host.
+If you need remote access, prefer Tailscale first, then authenticated nginx, then public exposure.
+If the gateway must bind beyond loopback, make sure the auth mode is still enabled and the trusted proxy list matches the real proxy IPs.
 
 ## Public HTTPS
 
@@ -96,6 +132,7 @@ Basic nginx proxy requirements:
 - forward `X-Forwarded-Proto https`
 - keep `client_max_body_size` and timeout values large enough for chat uploads
 - do not disable gateway authentication just because TLS exists
+- do not assume public TLS alone makes the UI safe
 
 ## Tailscale
 
@@ -108,6 +145,8 @@ sudo tailscale status --json | jq -r '.Self.DNSName'
 ```
 
 If the Control UI shows origin issues, add the tailnet HTTPS name to `gateway.controlUi.allowedOrigins` and restart the gateway.
+If Tailscale Serve is being used, the gateway still needs its auth settings intact. Tailnet transport is not a substitute for gateway auth.
+Tailnet DNS names and node IDs are host-specific; keep them out of public docs.
 
 ## Telegram
 
@@ -124,11 +163,16 @@ If Telegram reports a generic runtime failure, check the gateway logs first. The
 - missing provider secrets
 - session takeover during a live model change
 - missing auth profiles
+- the command pipeline deciding to reset or archive the session before the model call
+
+If the bot becomes noisy or returns the wrong language, inspect the Telegram command registry and reply localization layer before blaming the bot token.
 
 ## Common failures
 
-- `Proxy headers detected from untrusted address`: the reverse proxy is not trusted by the gateway config or the proxy is not actually coming from loopback.
-- `Control UI did not start`: browser-side module execution got blocked or the bundle failed to register.
-- `Something went wrong while processing your request`: usually a session / auth / provider startup problem, not a special Telegram-only error.
+- `Proxy headers detected from untrusted address`: the reverse proxy is not in the trusted-proxy set or traffic is not really flowing through the expected proxy.
+- `Control UI did not start`: frontend bundle execution is blocked or incomplete, even if the static page loads.
+- `Something went wrong while processing your request`: usually a session, auth, or provider startup problem, not a special Telegram-only error.
 - `Device pairing required`: approve the device once from the gateway host, then reconnect.
+- `session file changed while embedded prompt lock was released`: a live model-switch or embedded execution path stepped on the session lock boundary.
+- `No available OAuth accounts in pool`: auth provisioning is missing, not a model catalog problem.
 

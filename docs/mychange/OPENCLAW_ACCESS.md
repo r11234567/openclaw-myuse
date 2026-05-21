@@ -33,6 +33,7 @@ sudo tailscale status --json | jq -r '.Self.DNSName'
 ```
 
 If the browser reports origin or auth problems, add the exact tailnet HTTPS URL to `gateway.controlUi.allowedOrigins` in `~/.openclaw/openclaw.json`, then restart the gateway.
+Tailnet DNS names and node IDs are host-specific; keep them out of public docs.
 
 ## Public nginx path
 
@@ -46,6 +47,7 @@ Requirements:
 - `allowedOrigins` updated for the public HTTPS name
 
 The reverse proxy should point to the loopback gateway, not a public bind.
+Do not assume public TLS alone makes the UI safe.
 
 ## ACME with Cloudflare DNS
 
@@ -58,6 +60,7 @@ When using `acme.sh` with DNS validation:
 Then install the ECC cert into nginx and reload nginx.
 
 Keep the Cloudflare credentials in the shell environment or a private profile file, not in Git.
+Do not store the DNS token in the repo, even in a private runbook.
 
 ## Device pairing
 
@@ -84,4 +87,5 @@ This means the bot is not intended for general public use.
 - If the UI loads but the app bundle never registers, try a clean browser profile first.
 - If the gateway keeps restarting, check for missing provider env names.
 - If a live model switch fails, treat it as a session/provider boundary problem, not as a UI issue.
+- If you see `Something went wrong while processing your request`, inspect provider auth, session locks, and the runtime logs before trying a different browser or changing the bot text.
 
