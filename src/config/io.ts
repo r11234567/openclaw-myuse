@@ -2400,6 +2400,49 @@ export function getRuntimeConfig(options?: { skipPluginValidation?: boolean }): 
   return loadConfig(options);
 }
 
+export async function refreshRuntimeConfigSnapshotFromDisk(options: {
+  includeAuthStoreRefs?: boolean;
+  observe?: boolean;
+} = {}): Promise<{
+  refreshed: boolean;
+  path: string;
+  hash: string | null;
+}> {
+  const snapshot = await readConfigFileSnapshot({
+    ...(options.observe === false ? { observe: false } : {}),
+  });
+  if (!snapshot.exists) {
+    throw new Error(`Config file not found: ${snapshot.path}`);
+  }
+  if (!snapshot.valid) {
+    throwInvalidConfig(snapshot.issues);
+  }
+
+  const refreshHandler = getRuntimeConfigSnapshotRefreshHandlerState();
+  if (refreshHandler) {
+    const refreshed = await refreshHandler.refresh({
+      sourceConfig: snapshot.sourceConfig,
+      ...(options.includeAuthStoreRefs !== undefined
+        ? { includeAuthStoreRefs: options.includeAuthStoreRefs }
+        : {}),
+    });
+    if (refreshed) {
+      return {
+        refreshed: true,
+        path: snapshot.path,
+        hash: resolveConfigSnapshotHash(snapshot),
+      };
+    }
+  }
+
+  setRuntimeConfigSnapshotState(snapshot.config, snapshot.sourceConfig);
+  return {
+    refreshed: true,
+    path: snapshot.path,
+    hash: resolveConfigSnapshotHash(snapshot),
+  };
+}
+
 export async function readBestEffortConfig(): Promise<OpenClawConfig> {
   return await createConfigIO().readBestEffortConfig();
 }

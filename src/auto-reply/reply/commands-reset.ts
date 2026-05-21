@@ -29,6 +29,28 @@ function isResetAuthorized(params: HandleCommandsParams): boolean {
   });
 }
 
+function isTelegramResetSource(params: HandleCommandsParams): boolean {
+  return (
+    params.command.surface === "telegram" ||
+    params.command.channel === "telegram" ||
+    params.ctx.OriginatingChannel === "telegram"
+  );
+}
+
+function formatResetReply(params: HandleCommandsParams, action: ResetCommandAction): string {
+  if (action === "reset") {
+    return "✅ Session reset.";
+  }
+  if (isTelegramResetSource(params)) {
+    return [
+      "已归档当前 Telegram 会话，并开始新的 Telegram 会话。",
+      "查看归档：/archives",
+      "切回归档：/use <会话码>",
+    ].join("\n");
+  }
+  return "✅ New session started.";
+}
+
 export async function maybeHandleResetCommand(
   params: HandleCommandsParams,
 ): Promise<CommandHandlerResult | null> {
@@ -173,7 +195,7 @@ export async function maybeHandleResetCommand(
         ? {}
         : {
             reply: {
-              text: commandAction === "reset" ? "✅ Session reset." : "✅ New session started.",
+              text: formatResetReply(params, commandAction),
             },
           }),
     };

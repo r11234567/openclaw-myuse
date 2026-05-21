@@ -7,11 +7,16 @@ import {
   resolveSessionAgentId,
   resolveAgentSkillsFilter,
 } from "../../agents/agent-scope.js";
+import { resetModelCatalogCache } from "../../agents/model-catalog.js";
 import { modelKey, resolveModelRefFromString } from "../../agents/model-selection.js";
 import { resolveAgentTimeoutMs } from "../../agents/timeout.js";
 import { DEFAULT_AGENT_WORKSPACE_DIR, ensureAgentWorkspace } from "../../agents/workspace.js";
 import { resolveChannelModelOverride } from "../../channels/model-overrides.js";
-import { type OpenClawConfig, getRuntimeConfig } from "../../config/config.js";
+import {
+  type OpenClawConfig,
+  getRuntimeConfig,
+  refreshRuntimeConfigSnapshotFromDisk,
+} from "../../config/config.js";
 import { logVerbose } from "../../globals.js";
 import { measureDiagnosticsTimelineSpan } from "../../infra/diagnostics-timeline.js";
 import { formatErrorMessage } from "../../infra/errors.js";
@@ -75,6 +80,32 @@ function resolveHeartbeatAckMaxChars(cfg: OpenClawConfig, agentId: string): numb
       cfg.agents?.defaults?.heartbeat?.ackMaxChars ??
       DEFAULT_HEARTBEAT_ACK_MAX_CHARS,
   );
+}
+
+function resolveModelCommandSource(ctx: MsgContext): string {
+  return (
+    ctx.BodyForCommands ??
+    ctx.CommandBody ??
+    ctx.RawBody ??
+    ctx.BodyStripped ??
+    ctx.Body ??
+    ""
+  );
+}
+
+function shouldRefreshConfigForModelCommand(ctx: MsgContext): boolean {
+  return /(?:^|\s)\/models?(?=$|\s|:)/i.test(resolveModelCommandSource(ctx));
+}
+
+async function refreshRuntimeConfigForModelCommand(ctx: MsgContext): Promise<void> {
+  if (!shouldRefreshConfigForModelCommand(ctx)) {
+    return;
+  }
+  await refreshRuntimeConfigSnapshotFromDisk({
+    includeAuthStoreRefs: false,
+    observe: false,
+  });
+  resetModelCatalogCache();
 }
 
 const sessionResetModelRuntimeLoader = createLazyImportLoader(
@@ -208,6 +239,16 @@ export async function getReplyFromConfig(
   configOverride?: OpenClawConfig,
 ): Promise<ReplyPayload | ReplyPayload[] | undefined> {
   const isFastTestEnv = process.env.OPENCLAW_TEST_FAST === "1";
+  const finalized = finalizeInboundContext(ctx);
+  if (!configOverride) {
+    try {
+      await refreshRuntimeConfigForModelCommand(finalized);
+    } catch (err) {
+      return {
+        text: `模型配置刷新失败：${formatErrorMessage(err)}`,
+      };
+    }
+  }
   const cfg = resolveGetReplyConfig({
     getRuntimeConfig,
     isFastTestEnv,
@@ -221,7 +262,6 @@ export async function getReplyFromConfig(
     cfg,
     isFastTestEnv,
   });
-  const finalized = finalizeInboundContext(ctx);
   const targetSessionKey = resolveCommandTurnTargetSessionKey(finalized);
   const agentSessionKey = targetSessionKey || finalized.SessionKey;
   const traceAttributes = {

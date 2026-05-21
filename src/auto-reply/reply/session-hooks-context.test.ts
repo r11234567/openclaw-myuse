@@ -235,6 +235,30 @@ describe("session hook context wiring", () => {
     expectFields(startContext, { sessionId: startEvent?.sessionId });
   });
 
+  it("does not archive command-only transcripts on reset", async () => {
+    const sessionKey = "agent:main:telegram:direct:empty";
+    const { storePath } = await createStoredSession({
+      prefix: "openclaw-session-hook-command-only",
+      sessionKey,
+      sessionId: "command-only-session",
+      text: "/new",
+    });
+    const cfg = { session: { store: storePath } } as OpenClawConfig;
+
+    await initSessionState({
+      ctx: { Body: "/new", SessionKey: sessionKey },
+      cfg,
+      commandAuthorized: true,
+    });
+
+    const [event] = requireHookCall(hookRunnerMocks.runSessionEnd, "session_end");
+    expectFields(event, { reason: "new" });
+    expect(event.transcriptArchived).toBeUndefined();
+    expect(event.sessionFile).toBeUndefined();
+    expect(sessionCleanupMocks.retireSessionMcpRuntime).not.toHaveBeenCalled();
+    expect(sessionCleanupMocks.resetRegisteredAgentHarnessSessions).not.toHaveBeenCalled();
+  });
+
   it("marks explicit /reset rollovers with reason reset", async () => {
     const sessionKey = "agent:main:telegram:direct:456";
     const { storePath } = await createStoredSession({

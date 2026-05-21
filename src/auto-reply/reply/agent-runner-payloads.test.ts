@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resetPluginRuntimeStateForTest, setActivePluginRegistry } from "../../plugins/runtime.js";
 import { createTestRegistry } from "../../test-utils/channel-plugins.js";
 import {
@@ -139,6 +139,31 @@ describe("buildReplyPayloads media filter integration", () => {
 
     expect(replyPayloads).toHaveLength(1);
     expect(replyPayloads[0].mediaUrl).toBe("file:///tmp/photo.jpg");
+  });
+
+  it("runs media normalization for text-only replies so LaTeX can become image media", async () => {
+    const normalizeMediaPaths = vi.fn(
+      async (payload: { text?: string; mediaUrl?: string; mediaUrls?: string[] }) => ({
+        ...payload,
+        text: undefined,
+        mediaUrl: "/tmp/openclaw-latex-reply.png",
+        mediaUrls: ["/tmp/openclaw-latex-reply.png"],
+      }),
+    );
+
+    const { replyPayloads } = await buildReplyPayloads({
+      ...baseParams,
+      payloads: [{ text: "公式：\\frac{\\pi}{\\omega_d}" }],
+      normalizeMediaPaths,
+    });
+
+    expect(normalizeMediaPaths).toHaveBeenCalledTimes(1);
+    expect(replyPayloads).toHaveLength(1);
+    expectFields(replyPayloads[0], {
+      text: undefined,
+      mediaUrl: "/tmp/openclaw-latex-reply.png",
+      mediaUrls: ["/tmp/openclaw-latex-reply.png"],
+    });
   });
 
   it("normalizes sent media URLs before deduping normalized reply media", async () => {

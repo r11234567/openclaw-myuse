@@ -12,6 +12,7 @@ export {
   loadConfig,
   readBestEffortConfig,
   readSourceConfigBestEffort,
+  refreshRuntimeConfigSnapshotFromDisk,
   parseConfigJson5,
   promoteConfigSnapshotToLastKnownGood,
   readConfigFileSnapshot,

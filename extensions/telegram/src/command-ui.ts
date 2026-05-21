@@ -16,7 +16,7 @@ export function buildCommandsPaginationKeyboard(
 
   if (currentPage > 1) {
     buttons.push({
-      text: "◀ Prev",
+      text: "◀ 上一页",
       callback_data: `commands_page_${currentPage - 1}${suffix}`,
     });
   }
@@ -28,7 +28,7 @@ export function buildCommandsPaginationKeyboard(
 
   if (currentPage < totalPages) {
     buttons.push({
-      text: "Next ▶",
+      text: "下一页 ▶",
       callback_data: `commands_page_${currentPage + 1}${suffix}`,
     });
   }

@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { resolveSessionAgentId } from "../../agents/agent-scope.js";
 import { clearBootstrapSnapshotOnSessionRollover } from "../../agents/bootstrap-cache.js";
@@ -80,6 +81,100 @@ const sessionArchiveRuntimeLoader = createLazyImportLoader(
 
 function loadSessionArchiveRuntime() {
   return sessionArchiveRuntimeLoader.load();
+}
+
+function extractTranscriptMessageText(content: unknown): string {
+  if (typeof content === "string") {
+    return content.trim();
+  }
+  if (!Array.isArray(content)) {
+    return "";
+  }
+  return content
+    .map((part) => {
+      if (!part || typeof part !== "object") {
+        return "";
+      }
+      const text = (part as { text?: unknown }).text;
+      return typeof text === "string" ? text : "";
+    })
+    .join("\n")
+    .trim();
+}
+
+function stripTranscriptMetadata(text: string): string {
+  return text
+    .replace(/Conversation info \(untrusted metadata\):[\s\S]*?\n\n/u, "")
+    .replace(/Sender \(untrusted metadata\):[\s\S]*?\n\n/u, "")
+    .replace(/Conversation context \(untrusted[\s\S]*?\n\n/u, "")
+    .trim();
+}
+
+function isSessionControlCommandText(text: string): boolean {
+  const normalized = stripTranscriptMetadata(text).trim().toLowerCase();
+  return (
+    normalized === "/new" ||
+    normalized.startsWith("/new ") ||
+    normalized === "/reset" ||
+    normalized.startsWith("/reset ") ||
+    normalized === "/archives" ||
+    normalized.startsWith("/archives ") ||
+    normalized === "/tg_archives" ||
+    normalized.startsWith("/tg_archives ") ||
+    normalized === "/use" ||
+    normalized.startsWith("/use ") ||
+    normalized === "/tg_use" ||
+    normalized.startsWith("/tg_use ") ||
+    normalized === "/archive_use" ||
+    normalized.startsWith("/archive_use ") ||
+    normalized === "/switch_archive" ||
+    normalized.startsWith("/switch_archive ") ||
+    normalized === "/delete" ||
+    normalized.startsWith("/delete ") ||
+    normalized === "/tg_delete" ||
+    normalized.startsWith("/tg_delete ") ||
+    normalized === "/archive_delete" ||
+    normalized.startsWith("/archive_delete ") ||
+    normalized === "/current" ||
+    normalized === "/tg_current" ||
+    normalized === "/current_tg"
+  );
+}
+
+function transcriptHasConversationContent(sessionFile?: string): boolean {
+  if (!sessionFile) {
+    return false;
+  }
+  let content: string;
+  try {
+    content = fs.readFileSync(sessionFile, "utf8");
+  } catch {
+    return false;
+  }
+  for (const line of content.split("\n")) {
+    if (!line.trim()) {
+      continue;
+    }
+    try {
+      const entry = JSON.parse(line) as {
+        type?: string;
+        message?: { role?: string; content?: unknown };
+      };
+      if (entry.type !== "message") {
+        continue;
+      }
+      if (entry.message?.role !== "user") {
+        continue;
+      }
+      const text = extractTranscriptMessageText(entry.message.content);
+      if (text && !isSessionControlCommandText(text)) {
+        return true;
+      }
+    } catch {
+      // Ignore partial or malformed transcript lines.
+    }
+  }
+  return false;
 }
 
 function stripThreadFromSessionRoute(route: SessionEntry["route"]): SessionEntry["route"] {
@@ -837,7 +932,10 @@ export async function initSessionState(params: {
     sessionFile?: string;
     transcriptArchived?: boolean;
   } = {};
-  if (previousSessionEntry?.sessionId) {
+  if (
+    previousSessionEntry?.sessionId &&
+    transcriptHasConversationContent(previousSessionEntry.sessionFile)
+  ) {
     const { archiveSessionTranscriptsDetailed, resolveStableSessionEndTranscript } =
       await loadSessionArchiveRuntime();
     const archivedTranscripts = archiveSessionTranscriptsDetailed({

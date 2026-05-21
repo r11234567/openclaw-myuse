@@ -9,6 +9,11 @@ import {
   normalizeOptionalString,
 } from "../shared/string-coerce.js";
 import {
+  isChineseCommandSurface,
+  localizeCommandCategoryLabel,
+  localizeCommandDescription,
+} from "./commands-localization.js";
+import {
   listChatCommands,
   listChatCommandsForConfig,
   type ChatCommandDefinition,
@@ -51,7 +56,42 @@ function groupCommandsByCategory(
   return grouped;
 }
 
-export function buildHelpMessage(cfg?: OpenClawConfig): string {
+export function buildHelpMessage(
+  cfg?: OpenClawConfig,
+  options?: Pick<CommandsMessageOptions, "surface">,
+): string {
+  if (isChineseCommandSurface(options?.surface)) {
+    const lines = ["ℹ️ 帮助", ""];
+    lines.push("会话");
+    lines.push("  /new  |  /reset  |  /compact [说明]  |  /stop");
+    lines.push("  /archives  |  /use <会话码>  |  /delete <会话码>  |  /current");
+    lines.push("");
+    const optionParts = [
+      "/think <级别|default>",
+      "/model <模型>",
+      "/fast status|on|off|default",
+      "/verbose on|off|full",
+      "/trace on|off|raw",
+    ];
+    if (isCommandFlagEnabled(cfg, "config")) {
+      optionParts.push("/config");
+    }
+    if (isCommandFlagEnabled(cfg, "debug")) {
+      optionParts.push("/debug");
+    }
+    lines.push("选项");
+    lines.push(`  ${optionParts.join("  |  ")}`);
+    lines.push("");
+    lines.push("状态");
+    lines.push("  /status  |  /tasks  |  /whoami  |  /context");
+    lines.push("");
+    lines.push("技能");
+    lines.push("  /skill <名称> [输入]");
+    lines.push("");
+    lines.push("更多：/commands 查看完整命令，/tools 查看可用能力");
+    return lines.join("\n");
+  }
+
   const lines = ["ℹ️ Help", ""];
 
   lines.push("Session");
@@ -89,6 +129,16 @@ export function buildHelpMessage(cfg?: OpenClawConfig): string {
 }
 
 const COMMANDS_PER_PAGE = 8;
+const TELEGRAM_HIDDEN_LEGACY_ALIASES = new Set([
+  "/tg_archives",
+  "/tg_use",
+  "/archive_use",
+  "/switch_archive",
+  "/tg_delete",
+  "/archive_delete",
+  "/tg_current",
+  "/current_tg",
+]);
 
 export type CommandsMessageOptions = {
   page?: number;
@@ -104,7 +154,7 @@ export type CommandsMessageResult = {
   hasPrev: boolean;
 };
 
-function formatCommandEntry(command: ChatCommandDefinition): string {
+function formatCommandEntry(command: ChatCommandDefinition, surface?: string): string {
   const primary = command.nativeName
     ? `/${command.nativeName}`
     : normalizeOptionalString(command.textAliases[0]) || `/${command.key}`;
@@ -112,6 +162,11 @@ function formatCommandEntry(command: ChatCommandDefinition): string {
   const aliases = command.textAliases
     .map((alias) => alias.trim())
     .filter(Boolean)
+    .filter(
+      (alias) =>
+        !isChineseCommandSurface(surface) ||
+        !TELEGRAM_HIDDEN_LEGACY_ALIASES.has(normalizeLowercaseStringOrEmpty(alias)),
+    )
     .filter(
       (alias) =>
         normalizeLowercaseStringOrEmpty(alias) !== normalizeLowercaseStringOrEmpty(primary),
@@ -126,7 +181,7 @@ function formatCommandEntry(command: ChatCommandDefinition): string {
     });
   const aliasLabel = aliases.length ? ` (${aliases.join(", ")})` : "";
   const scopeLabel = command.scope === "text" ? " [text]" : "";
-  return `${primary}${aliasLabel}${scopeLabel} - ${command.description}`;
+  return `${primary}${aliasLabel}${scopeLabel} - ${localizeCommandDescription(command, surface)}`;
 }
 
 type CommandsListItem = {
@@ -137,6 +192,7 @@ type CommandsListItem = {
 function buildCommandItems(
   commands: ChatCommandDefinition[],
   pluginCommands: ReturnType<typeof listPluginCommands>,
+  surface?: string,
 ): CommandsListItem[] {
   const grouped = groupCommandsByCategory(commands);
   const items: CommandsListItem[] = [];
@@ -146,16 +202,16 @@ function buildCommandItems(
     if (categoryCommands.length === 0) {
       continue;
     }
-    const label = CATEGORY_LABELS[category];
+    const label = localizeCommandCategoryLabel(CATEGORY_LABELS[category], surface);
     for (const command of categoryCommands) {
-      items.push({ label, text: formatCommandEntry(command) });
+      items.push({ label, text: formatCommandEntry(command, surface) });
     }
   }
 
   for (const command of pluginCommands) {
     const pluginLabel = command.pluginId ? ` (${command.pluginId})` : "";
     items.push({
-      label: "Plugins",
+      label: localizeCommandCategoryLabel("Plugins", surface),
       text: `/${command.name}${pluginLabel} - ${command.description}`,
     });
   }
@@ -205,12 +261,17 @@ export function buildCommandsMessagePaginated(
     ? listChatCommandsForConfig(cfg, { skillCommands })
     : listChatCommands({ skillCommands });
   const pluginCommands = listPluginCommands();
-  const items = buildCommandItems(commands, pluginCommands);
+  const items = buildCommandItems(commands, pluginCommands, surface);
 
   if (!prefersPaginatedList) {
-    const lines = ["ℹ️ Slash commands", ""];
+    const lines = [isChineseCommandSurface(surface) ? "ℹ️ 可用命令" : "ℹ️ Slash commands", ""];
     lines.push(formatCommandList(items));
-    lines.push("", "More: /tools for available capabilities");
+    lines.push(
+      "",
+      isChineseCommandSurface(surface)
+        ? "更多：/tools 查看可用能力"
+        : "More: /tools for available capabilities",
+    );
     return {
       text: lines.join("\n").trim(),
       totalPages: 1,
@@ -227,7 +288,10 @@ export function buildCommandsMessagePaginated(
   const endIndex = startIndex + COMMANDS_PER_PAGE;
   const pageItems = items.slice(startIndex, endIndex);
 
-  const lines = [`ℹ️ Commands (${currentPage}/${totalPages})`, ""];
+  const lines = [
+    `${isChineseCommandSurface(surface) ? "ℹ️ 命令" : "ℹ️ Commands"} (${currentPage}/${totalPages})`,
+    "",
+  ];
   lines.push(formatCommandList(pageItems));
 
   return {

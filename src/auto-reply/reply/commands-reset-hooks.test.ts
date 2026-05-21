@@ -488,6 +488,35 @@ describe("handleCommands reset hooks", () => {
     expectObjectFields(firstHookEvent(), { type: "command", action: "new" }, "hook event");
   });
 
+  it("tells Telegram users that /new archived the current chat", async () => {
+    const params = buildResetParams(
+      "/new",
+      {
+        commands: { text: true },
+        channels: { telegram: { allowFrom: ["*"] } },
+      } as OpenClawConfig,
+      {
+        Provider: "telegram",
+        Surface: "telegram",
+        OriginatingChannel: "telegram",
+        OriginatingTo: "telegram:123",
+      },
+    );
+
+    const result = await maybeHandleResetCommand(params);
+
+    expect(result).toEqual({
+      shouldContinue: false,
+      reply: {
+        text:
+          "已归档当前 Telegram 会话，并开始新的 Telegram 会话。\n" +
+          "查看归档：/archives\n" +
+          "切回归档：/use <会话码>",
+      },
+    });
+    expectObjectFields(firstHookEvent(), { type: "command", action: "new" }, "hook event");
+  });
+
   it("keeps reset tails falling through so the model receives the user input", async () => {
     const params = buildResetParams("/new take notes", {
       commands: { text: true },
