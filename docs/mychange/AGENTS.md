@@ -24,6 +24,8 @@
 - `src/auto-reply/reply/get-reply.ts` is the orchestrator that decides whether to refresh config, apply media understanding, or hand off to the reply pipeline.
 - `src/auto-reply/commands-registry.shared.ts` is the command catalog source for slash command definitions and aliasing.
 
+For build, run, and health-check commands, see OPERATIONS.md.
+
 ## Non obvious user preferences
 
 - Use Docker for the runtime and keep the CLI installed inside the same image.

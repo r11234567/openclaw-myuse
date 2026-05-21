@@ -113,3 +113,10 @@
 - `upstream` still points at the official OpenClaw repository.
 - The private repo has the sanitized doc set and the current feature work.
 - The default agent model in the current runtime is `aitoken/claude-opus-4-6`.
+
+## How to update this changelog
+
+- Add each new requirement to the phase where the decision or implementation actually happened.
+- Start a new phase when the work changes ownership boundary, risk level, or operating mode.
+- Keep commit messages concise, then expand the changelog entry with the concrete files, decision, and pitfall.
+- If a commit spans multiple concerns, document the split here even if Git history stays compact.
