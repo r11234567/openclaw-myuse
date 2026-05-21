@@ -17,6 +17,7 @@ import { resolveAgentScopedOutboundMediaAccess } from "../../media/read-capabili
 import { MEDIA_MAX_BYTES } from "../../media/store.js";
 import { appendReplyMediaFailureWarning } from "../reply-payload.js";
 import type { ReplyPayload } from "../types.js";
+import { renderLatexReplyPayloadToImageIfNeeded } from "./latex-reply-image.js";
 
 const FILE_URL_RE = /^file:\/\//i;
 const WINDOWS_DRIVE_RE = /^[a-zA-Z]:[\\/]/;
@@ -193,9 +194,10 @@ export function createReplyMediaPathNormalizer(params: {
   };
 
   return async (payload) => {
-    const mediaList = getPayloadMediaList(payload);
+    const renderedPayload = await renderLatexReplyPayloadToImageIfNeeded(payload);
+    const mediaList = getPayloadMediaList(renderedPayload);
     if (mediaList.length === 0) {
-      return payload;
+      return renderedPayload;
     }
 
     const normalizedMedia: string[] = [];
@@ -219,12 +221,12 @@ export function createReplyMediaPathNormalizer(params: {
 
     const text =
       firstMediaDropError === undefined
-        ? payload.text
-        : appendReplyMediaFailureWarning(payload.text);
+        ? renderedPayload.text
+        : appendReplyMediaFailureWarning(renderedPayload.text);
 
     if (normalizedMedia.length === 0) {
       return {
-        ...payload,
+        ...renderedPayload,
         text,
         mediaUrl: undefined,
         mediaUrls: undefined,
@@ -232,7 +234,7 @@ export function createReplyMediaPathNormalizer(params: {
     }
 
     return {
-      ...payload,
+      ...renderedPayload,
       text,
       mediaUrl: normalizedMedia[0],
       mediaUrls: normalizedMedia,

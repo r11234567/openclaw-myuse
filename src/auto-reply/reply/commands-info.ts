@@ -36,7 +36,7 @@ export const handleHelpCommand: CommandHandler = async (params, allowTextCommand
   }
   return {
     shouldContinue: false,
-    reply: { text: buildHelpMessage(params.cfg) },
+    reply: { text: buildHelpMessage(params.cfg, { surface: params.ctx.Surface }) },
   };
 };
 

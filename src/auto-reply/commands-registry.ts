@@ -8,6 +8,7 @@ import { getChannelPlugin, getLoadedChannelPlugin } from "../channels/plugins/in
 import type { OpenClawConfig } from "../config/types.js";
 import { normalizeOptionalLowercaseString } from "../shared/string-coerce.js";
 import { listChatCommands, listChatCommandsForConfig } from "./commands-registry-list.js";
+import { localizeCommandDescription } from "./commands-localization.js";
 import { normalizeCommandBody } from "./commands-registry-normalize.js";
 import { getChatCommands } from "./commands-registry.data.js";
 import type {
@@ -79,7 +80,7 @@ function resolveNativeName(
 function toNativeCommandSpec(command: ChatCommandDefinition, provider?: string): NativeCommandSpec {
   const spec: NativeCommandSpec = {
     name: resolveNativeName(command, provider) ?? command.key,
-    description: command.description,
+    description: localizeCommandDescription(command, provider),
     acceptsArgs: Boolean(command.acceptsArgs),
     args: command.args,
   };

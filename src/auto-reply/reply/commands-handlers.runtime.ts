@@ -34,6 +34,7 @@ import {
 import { handleSteerCommand } from "./commands-steer.js";
 import { handleSubagentsCommand } from "./commands-subagents.js";
 import { handleTasksCommand } from "./commands-tasks.js";
+import { handleTelegramArchivesCommand } from "./commands-telegram-archives.js";
 import { handleTtsCommands } from "./commands-tts.js";
 import type { CommandHandler } from "./commands-types.js";
 import { handleWhoamiCommand } from "./commands-whoami.js";
@@ -49,6 +50,7 @@ export function loadCommandHandlers(): CommandHandler[] {
     handleFastCommand,
     handleUsageCommand,
     handleSessionCommand,
+    handleTelegramArchivesCommand,
     handleRestartCommand,
     handleTtsCommands,
     handleHelpCommand,

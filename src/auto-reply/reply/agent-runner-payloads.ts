@@ -38,7 +38,7 @@ async function normalizeReplyPayloadMedia(params: {
   normalizeMediaPaths?: (payload: ReplyPayload) => Promise<ReplyPayload>;
   suppressMediaFailureWarning?: boolean;
 }): Promise<ReplyPayload> {
-  if (!params.normalizeMediaPaths || !resolveSendableOutboundReplyParts(params.payload).hasMedia) {
+  if (!params.normalizeMediaPaths) {
     return params.payload;
   }
 

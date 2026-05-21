@@ -130,6 +130,10 @@ Current source-of-truth:
     - `/compact [instructions]` compacts the session context. See [Compaction](/concepts/compaction).
     - `/stop` aborts the current run.
     - `/session idle <duration|off>` and `/session max-age <duration|off>` manage thread-binding expiry.
+    - `/archives [page]` lists reset archives that were created from the current Telegram conversation only. Alias: `/tg_archives`.
+    - `/use <code>` archives the current Telegram conversation when it has real user content, then restores the selected `/archives` entry as the active Telegram conversation. Aliases: `/tg_use`, `/archive_use`, `/switch_archive`.
+    - `/delete <code>` deletes a Telegram archive from the current conversation. Aliases: `/tg_delete`, `/archive_delete`.
+    - `/current` shows the active Telegram session key and session id. Aliases: `/tg_current`, `/current_tg`.
     - `/export-session [path]` exports the current session to HTML. Alias: `/export`.
     - `/export-trajectory [path]` asks for exec approval, then exports a JSONL [trajectory bundle](/tools/trajectory) for the current session. Use it when you need the prompt, tool, and transcript timeline for one OpenClaw session. In group chats, the approval prompt and export result go to the owner privately. Alias: `/trajectory`.
 
