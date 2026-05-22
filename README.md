@@ -30,6 +30,13 @@ It keeps the Gateway and CLI in one Docker runtime, uses Telegram as a controlle
 - `docs/mychange/CHANGELOG.md`: source-code changes only, with the reasons they happened.
 - `docs/mychange/OPENCLAW_ACCESS.md`: current access topology and entry paths.
 
+## For AI assistants
+
+- Read the docs in the same order as "Where to look" above.
+- End every task by updating the right file: source changes go to `CHANGELOG.md`, operational actions go to `WORKLOG.md`, and new pitfalls or durable context go to `AGENTS.md`.
+- Do not amend commits during normal work.
+- Push to the private `origin` by default; keep `upstream` for official syncing only.
+
 ## Implemented behavior
 
 - Provider wiring for OpenAI-compatible and Anthropic-compatible upstreams.
