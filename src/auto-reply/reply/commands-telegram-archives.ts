@@ -15,6 +15,7 @@ const ARCHIVE_USE_COMMANDS = new Set(["/use", "/tg_use", "/archive_use", "/switc
 const ARCHIVE_DELETE_COMMANDS = new Set(["/delete", "/tg_delete", "/archive_delete"]);
 const CURRENT_COMMANDS = new Set(["/current", "/tg_current", "/current_tg"]);
 const ARCHIVE_SUFFIX_RE = /\.jsonl\.reset\.(.+)$/;
+const ARCHIVE_CODE_LENGTH = 5;
 const PAGE_SIZE = 10;
 
 type ParsedTelegramArchive = {
@@ -187,28 +188,18 @@ function parseArchiveTranscript(params: {
   };
 }
 
-function buildArchiveCode(archive: ParsedTelegramArchive, length: number): string {
+function buildArchiveCode(archive: ParsedTelegramArchive): string {
   return crypto
     .createHash("sha256")
-    .update(`${archive.sessionId}\n${archive.archivePath}\n${archive.archivedAtMs}`)
+    .update(`${archive.sessionId}\n${archive.archivedAtMs}`)
     .digest("base64url")
     .replace(/[^a-zA-Z0-9]/gu, "")
-    .slice(0, length)
+    .slice(0, ARCHIVE_CODE_LENGTH)
     .toLowerCase();
 }
 
 function assignArchiveCodes(archives: ParsedTelegramArchive[]): TelegramArchive[] {
-  const used = new Set<string>();
-  return archives.map((archive) => {
-    let length = 5;
-    let code = buildArchiveCode(archive, length);
-    while (used.has(code)) {
-      length += 1;
-      code = buildArchiveCode(archive, length);
-    }
-    used.add(code);
-    return { ...archive, code };
-  });
+  return archives.map((archive) => ({ ...archive, code: buildArchiveCode(archive) }));
 }
 
 async function listTelegramArchives(params: HandleCommandsParams): Promise<TelegramArchive[]> {
@@ -262,10 +253,10 @@ function formatArchivesReply(archives: TelegramArchive[], page: number): string 
     "",
     ...selected.map((archive) => formatArchiveLine(archive)),
     "",
-    "切换：/use <会话码>",
-    "删除：/delete <会话码>",
+    "切换：/use <5位会话码>",
+    "删除：/delete <5位会话码>",
     "翻页：/archives <页码>",
-    "提示：Telegram 里点一下会话码即可复制。",
+    "提示：Telegram 里点一下 5 位会话码即可复制。",
   ].join("\n");
 }
 
@@ -276,7 +267,7 @@ function parsePositiveIndex(value: string): number | undefined {
 
 function parseArchiveSelector(value: string): string | undefined {
   const selector = value.trim().toLowerCase();
-  return /^[a-z0-9]{5,32}$/u.test(selector) ? selector : undefined;
+  return /^[a-z0-9]{5}$/u.test(selector) ? selector : undefined;
 }
 
 function buildArchivePath(filePath: string, now = new Date()): string {
@@ -452,7 +443,7 @@ export const handleTelegramArchivesCommand: CommandHandler = async (params, allo
     if (!selector) {
       return {
         shouldContinue: false,
-        reply: { text: "用法：/delete <会话码>。先用 /archives 查看会话码。" },
+        reply: { text: "用法：/delete <5位会话码>。先用 /archives 查看会话码。" },
       };
     }
     const archives = await listTelegramArchives(params);
@@ -480,14 +471,11 @@ export const handleTelegramArchivesCommand: CommandHandler = async (params, allo
   if (!selector) {
     return {
       shouldContinue: false,
-      reply: { text: "用法：/use <会话码>。先用 /archives 查看会话码。" },
+      reply: { text: "用法：/use <5位会话码>。先用 /archives 查看会话码。" },
     };
   }
   const archives = await listTelegramArchives(params);
-  const numericIndex = parsePositiveIndex(selector);
-  const archive =
-    archives.find((candidate) => candidate.code === selector) ??
-    (numericIndex ? archives[numericIndex - 1] : undefined);
+  const archive = archives.find((candidate) => candidate.code === selector);
   if (!archive) {
     return { shouldContinue: false, reply: { text: `没有会话码 ${selector} 对应的归档。` } };
   }

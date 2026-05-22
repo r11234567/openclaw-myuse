@@ -323,6 +323,16 @@ describe("commands registry", () => {
     ).toBeUndefined();
   });
 
+  it("localizes Telegram native command descriptions to Chinese", () => {
+    const native = listNativeCommandSpecsForConfig(
+      { commands: { native: true } },
+      { provider: "telegram" },
+    );
+    expect(requireNativeSpec(native, "help").description).toBe("显示可用命令。");
+    expect(requireNativeSpec(native, "archives").description).toBe("查看当前聊天的归档会话。");
+    expect(requireNativeSpec(native, "bash").description).toBe("运行主机 shell 命令。");
+  });
+
   it("can resolve default native command names without loading bundled channel fallbacks", () => {
     const command = findCommandByNativeName("status", "discord", {
       includeBundledChannelFallback: false,

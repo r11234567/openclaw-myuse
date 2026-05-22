@@ -128,10 +128,33 @@ describe("handleTelegramArchivesCommand", () => {
 
     expect(result?.shouldContinue).toBe(false);
     expect(result?.reply?.text).toContain("hello from tg-old");
-    expect(result?.reply?.text).toMatch(/`[a-z0-9]{5,}`/u);
+    expect(result?.reply?.text).toMatch(/`[a-z0-9]{5}`/u);
     expect(result?.reply?.text).not.toContain("other-chat");
     expect(result?.reply?.text).not.toContain("command-only");
     expect(result?.reply?.text).not.toContain("dashboard");
+  });
+
+  it("keeps archive codes stable at five characters", async () => {
+    const dir = await makeTempSessionsDir();
+    const archivedPath = path.join(dir, "old.jsonl.reset.2026-05-20T10-00-00.000Z");
+    await writeTranscript(archivedPath, "old", "111");
+
+    const firstResult = await handleTelegramArchivesCommand(
+      buildParams({ command: "/archives", sessionsDir: dir }),
+      true,
+    );
+    const firstCode = /`([a-z0-9]{5})`/u.exec(firstResult?.reply?.text ?? "")?.[1];
+    expect(firstCode).toMatch(/^[a-z0-9]{5}$/u);
+
+    const renamedPath = path.join(dir, "old-renamed.jsonl.reset.2026-05-20T10-00-00.000Z");
+    await fs.rename(archivedPath, renamedPath);
+
+    const secondResult = await handleTelegramArchivesCommand(
+      buildParams({ command: "/archives", sessionsDir: dir }),
+      true,
+    );
+    const secondCode = /`([a-z0-9]{5})`/u.exec(secondResult?.reply?.text ?? "")?.[1];
+    expect(secondCode).toBe(firstCode);
   });
 
   it("archives the current Telegram session and restores the selected archive", async () => {

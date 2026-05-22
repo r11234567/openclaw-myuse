@@ -307,6 +307,41 @@ describe("bot-native-command-menu", () => {
     );
   });
 
+  it("keeps zh localized command descriptions in Telegram menu sync", async () => {
+    const deleteMyCommands = vi.fn(async () => undefined);
+    const setMyCommands = vi.fn(async () => undefined);
+    const commands = [
+      {
+        command: "cmd",
+        description: "Default",
+        descriptionLocalizations: {
+          zh: "中文说明",
+        },
+      },
+    ];
+
+    syncMenuCommandsWithMocks({
+      deleteMyCommands,
+      setMyCommands,
+      commandsToRegister: commands,
+      accountId: `test-zh-cn-${Date.now()}`,
+      botIdentity: "bot-a",
+    });
+
+    await vi.waitFor(() => {
+      expect(setMyCommands).toHaveBeenCalledTimes(4);
+    });
+
+    expect(setMyCommandsPayload(setMyCommands, 2)).toEqual([
+      { command: "cmd", description: "中文说明" },
+    ]);
+    expect(setMyCommandsCall(setMyCommands, 2).at(1)).toEqual({ language_code: "zh" });
+    expect(setMyCommandsCall(setMyCommands, 3).at(1)).toEqual({
+      scope: { type: "all_group_chats" },
+      language_code: "zh",
+    });
+  });
+
   it("caps localized command descriptions before registering Telegram variants", async () => {
     const deleteMyCommands = vi.fn(async () => undefined);
     const setMyCommands = vi.fn(async () => undefined);

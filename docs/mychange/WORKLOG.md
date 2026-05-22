@@ -65,6 +65,13 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - Added a CJK font probe to the LaTeX reply renderer so future boxed-Chinese failures leave an explicit verbose log that points at missing `fontconfig` or `fonts-noto-cjk`.
 - Follow-up: after pulling this change on the host, rebuild the Docker image and restart the Gateway, then send a Chinese-plus-formula Telegram test reply and check that the text is not rendered as boxes.
 
+## 2026-05-22: Telegram menu localization and archive code stabilization
+
+- Fixed Telegram command menu language-code handling so `zh-CN` localized descriptions can actually reach `setMyCommands`.
+- Reworked the Telegram archive identifiers to stay at a fixed 5-character hash and stopped the code from growing longer when collisions appear.
+- Tightened the archive usage copy so the `/archives` path makes the 5-character code requirement explicit.
+- The operational follow-up is to re-register the Telegram menu after the next restart and confirm the localized descriptions show in the bot command list.
+
 ## What to log here next
 
 - Any Docker build, rebuild, or prune that changes the runtime image.

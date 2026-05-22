@@ -350,7 +350,10 @@ function writeCachedCommandHash(
 
 function normalizeTelegramLanguageCode(languageCode: string): string | null {
   const normalized = languageCode.trim().toLowerCase();
-  return /^[a-z]{2}$/.test(normalized) ? normalized : null;
+  if (normalized === "zh" || normalized.startsWith("zh-")) {
+    return "zh";
+  }
+  return /^[a-z]{2}$/u.test(normalized) ? normalized : null;
 }
 
 function readLocalizedDescription(

@@ -14,7 +14,7 @@ Deployment steps, rebuild history, certificate work, proxy setup, and other oper
 ## Phase 2: Telegram archive commands and command surface
 
 - `src/auto-reply/reply/commands-telegram-archives.ts` owns archive listing, archive switching, current-chat filtering, and archive deletion.
-- Short hash-style archive codes replaced the old rotating numeric labels so the user can copy and paste a stable identifier.
+- Short hash-style archive codes replaced the old rotating numeric labels so the user can copy and paste a stable identifier, and the code now stays fixed at 5 characters.
 - The command surface was kept chat-local: Telegram should only see archives created in that Telegram flow, not gateway-created sessions from elsewhere.
 - Compatibility aliases such as `/tg_*` remain available, but they are only aliases; the human-facing command surface stays centered on the plain Telegram commands.
 - Tests around archive listing, current-chat filtering, and delete behavior were kept close to the handler so the chat-local contract stays visible.
@@ -22,7 +22,7 @@ Deployment steps, rebuild history, certificate work, proxy setup, and other oper
 ## Phase 3: localized command registry and Telegram UX
 
 - `src/auto-reply/commands-registry.shared.ts`, `src/auto-reply/commands-localization.ts`, and `src/auto-reply/commands-text-routing.ts` carry the command metadata and the localized command text.
-- The visible Telegram command menu and replies were adjusted toward Chinese where the surface is user-facing.
+- The visible Telegram command menu and replies were adjusted toward Chinese where the surface is user-facing, and Telegram menu sync now accepts `zh-CN` description localizations.
 - The choice was to localize stable user-facing command text while keeping internal aliases and handler names intact for compatibility.
 - The risk here was drift between the command registry, the menu, and the reply copy, so the registry and localization layers stayed aligned.
 
