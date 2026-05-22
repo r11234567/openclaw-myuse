@@ -6,34 +6,13 @@ This is the access map for the current private deployment. All hostnames, node n
 
 - Local gateway: `127.0.0.1:18789`
 - Local nginx proxy: `127.0.0.1:8080`
-- Tailnet HTTPS: `https://<tailscale-dns-name>/`
 - Public HTTPS: `https://<public-domain>/`
 
 ## Preferred order
 
 1. Loopback while debugging.
-2. Tailnet for private remote use.
-3. Public nginx only when authentication stays on and TLS is configured.
-
-## Tailscale path
-
-Tailscale is the easiest private HTTPS path when you do not want SSH tunnels.
-
-```bash
-sudo tailscale serve --https=443 http://127.0.0.1:8080
-sudo tailscale serve status
-tailscale status
-tailscale ping <tailscale-node-name>
-```
-
-If the tailnet URL changes, refresh the exact DNS name with:
-
-```bash
-sudo tailscale status --json | jq -r '.Self.DNSName'
-```
-
-If the browser reports origin or auth problems, add the exact tailnet HTTPS URL to `gateway.controlUi.allowedOrigins` in `~/.openclaw/openclaw.json`, then restart the gateway.
-Tailnet DNS names and node IDs are host-specific; keep them out of public docs.
+2. Public nginx with ACME TLS when remote access is required.
+3. Any future private overlay network should be documented here only after it is actually part of the active deployment.
 
 ## Public nginx path
 
@@ -82,10 +61,15 @@ Telegram is restricted to the allowlisted user ID.
 
 This means the bot is not intended for general public use.
 
+## How to update this access map
+
+- Update the route list first, then the nginx or certificate notes that make the route work.
+- Keep real hostnames, node IDs, and IPs out of the file; use placeholders if the shape matters.
+- If an access path is retired, remove it from the route list and record the retirement in `WORKLOG.md`.
+
 ## What to watch for
 
 - If the UI loads but the app bundle never registers, try a clean browser profile first.
 - If the gateway keeps restarting, check for missing provider env names.
 - If a live model switch fails, treat it as a session/provider boundary problem, not as a UI issue.
 - If you see `Something went wrong while processing your request`, inspect provider auth, session locks, and the runtime logs before trying a different browser or changing the bot text.
-

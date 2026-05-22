@@ -171,7 +171,8 @@ The active providers in `$HOME/.openclaw/openclaw.json` are:
 
 - `tcdmx/gpt-5.5`: OpenAI chat-completions compatible
 - `aitoken/gpt-5.5`: OpenAI chat-completions compatible
-- `zzshu/claude-opus-4-6`: Anthropic Messages compatible
+- `zzshu-claude/claude-opus-4-6`: Anthropic Messages compatible
+- `zzshu-gpt/gpt-5.5`: OpenAI chat-completions compatible
 
 If the upstream model names differ, edit the `id` fields and matching model refs under `agents.defaults.model`.
 

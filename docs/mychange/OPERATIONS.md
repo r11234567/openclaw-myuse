@@ -109,7 +109,7 @@ The safest default is loopback-only gateway access:
 - Local nginx proxy: `127.0.0.1:8080`
 
 This keeps the Gateway off the public interface while still allowing browser access from the host.
-If you need remote access, prefer Tailscale first, then authenticated nginx, then public exposure.
+If you need remote access, use authenticated nginx with ACME TLS and keep gateway auth on.
 If the gateway must bind beyond loopback, make sure the auth mode is still enabled and the trusted proxy list matches the real proxy IPs.
 
 ## Public HTTPS
@@ -133,20 +133,6 @@ Basic nginx proxy requirements:
 - keep `client_max_body_size` and timeout values large enough for chat uploads
 - do not disable gateway authentication just because TLS exists
 - do not assume public TLS alone makes the UI safe
-
-## Tailscale
-
-Private tailnet access is the easiest way to avoid public exposure.
-
-```bash
-sudo tailscale serve --https=443 http://127.0.0.1:8080
-sudo tailscale serve status
-sudo tailscale status --json | jq -r '.Self.DNSName'
-```
-
-If the Control UI shows origin issues, add the tailnet HTTPS name to `gateway.controlUi.allowedOrigins` and restart the gateway.
-If Tailscale Serve is being used, the gateway still needs its auth settings intact. Tailnet transport is not a substitute for gateway auth.
-Tailnet DNS names and node IDs are host-specific; keep them out of public docs.
 
 ## Telegram
 
@@ -176,3 +162,8 @@ If the bot becomes noisy or returns the wrong language, inspect the Telegram com
 - `session file changed while embedded prompt lock was released`: a live model-switch or embedded execution path stepped on the session lock boundary.
 - `No available OAuth accounts in pool`: auth provisioning is missing, not a model catalog problem.
 
+## How to update this runbook
+
+- Add a command here when it is used to recover, verify, or rebuild the current deployment.
+- Keep commands grouped by the problem they solve, not by the order they were discovered.
+- If a command starts failing, update the note with the new failure signature and move the deeper explanation to `WORKLOG.md`.

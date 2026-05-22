@@ -23,6 +23,9 @@
 - `src/auto-reply/reply/latex-reply-image.ts` is the postprocessor that turns LaTeX-heavy replies into a single PNG when plain text is not enough.
 - `src/auto-reply/reply/get-reply.ts` is the orchestrator that decides whether to refresh config, apply media understanding, or hand off to the reply pipeline.
 - `src/auto-reply/commands-registry.shared.ts` is the command catalog source for slash command definitions and aliasing.
+- `src/auto-reply/commands-text-routing.ts` and `src/auto-reply/commands-slash-parse.ts` normalize the inbound text before command lookup.
+- `src/auto-reply/reply/commands-core.ts`, `src/auto-reply/reply/commands-core.runtime.ts`, and the session reset helpers are where authorization, reset, and command short-circuiting converge.
+- `src/auto-reply/reply/commands.runtime.ts` and `src/auto-reply/reply/commands-handlers.runtime.ts` are the best places to inspect when the same command behaves differently in Telegram versus the Gateway UI.
 
 For build, run, and health-check commands, see OPERATIONS.md.
 
@@ -43,6 +46,7 @@ For build, run, and health-check commands, see OPERATIONS.md.
 - Avoid turning a generic failure string into a fake diagnosis.
 - Keep test coverage focused around the command and session flow, not only around surface strings.
 - Short, unique session codes are preferred over rotating numeric labels because they are easier to copy and less ambiguous.
+- Keep the operator docs split by role: WORKLOG for live operations, AGENTS for background, OPERATIONS for commands, CHANGELOG for source changes, and OPENCLAW_ACCESS for entry paths.
 
 ## Error handling stance
 
@@ -60,7 +64,7 @@ For build, run, and health-check commands, see OPERATIONS.md.
 - Stale provider env names can survive across config edits and still break startup.
 - A successful Docker build can still leave the gateway in a restart loop if runtime secrets are wrong.
 - Control UI failures can be browser-side even when the backend is healthy.
-- Tailscale Serve / public nginx need allowlist updates for the exact origin.
+- Public nginx needs allowlist updates for the exact origin.
 - `/new` needs to archive, not delete, or the user loses the conversation.
 - Switching providers or models from inside a chat can fail because the session is still pinned to the old runtime/auth state.
 - Docker build cache can become a real disk problem after repeated rebuilds.
@@ -72,10 +76,12 @@ For build, run, and health-check commands, see OPERATIONS.md.
   - archive selection and deletion work
   - short hash codes are used, but the UX still needs more ergonomic display and stable copy/paste handling
   - the list/delete UX still needs clearer "current chat only" wording in the visible command text
+  - the visible command text should keep plain `/archives`, `/use`, `/delete`, and `/current` as the main UX, with compatibility aliases hidden in the implementation
 - `src/auto-reply/reply/session.ts`
   - `/new` and stale-session rollover preserve continuity
   - empty command-only sessions still need stronger guard rails in edge cases
   - the state machine around session reuse vs. archive rollover is the main place to inspect when new regressions appear
+  - model-switch failure cases should continue to fail visibly when the session lock or auth pool is wrong
 - `src/auto-reply/reply/latex-reply-image.ts`
   - LaTeX image rendering works for text replies
   - it still needs more human-friendly layout tuning for mixed text + formula output
@@ -87,6 +93,7 @@ For build, run, and health-check commands, see OPERATIONS.md.
 - `docs/mychange/*`
   - current docs capture the branch shape, but they should be extended with concrete command examples and known failure signatures if this branch keeps evolving
   - they are sanitized, so any host-specific references must stay redacted or templated
+  - the current split should stay stable unless a future session deliberately changes the doc roles again
 
 ## Specific command and session flow notes
 
@@ -97,6 +104,13 @@ For build, run, and health-check commands, see OPERATIONS.md.
 - Empty command-only sessions should be filtered before archiving.
 - The session store is updated after the session file path is resolved, so the file system and the in-memory store need to stay aligned.
 - The LaTeX image postprocessor is downstream of reply generation, so it should be treated as a formatting fallback, not as the primary reasoning path.
+- The command pipeline should stay ordered as normalize -> match registry -> authorize -> initialize/reset session -> maybe short-circuit -> reply/postprocess.
+
+## How to update this file
+
+- When the command pipeline changes, update the architecture snapshot and the specific file pointers together.
+- When a preference becomes important enough to affect future work, add the concrete version of that preference here rather than leaving it implicit.
+- When a half-finished area becomes complete, move the note out of this file and into `CHANGELOG.md` or `WORKLOG.md` as appropriate.
 
 ## Practical operating rules
 
