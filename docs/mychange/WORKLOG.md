@@ -50,6 +50,13 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - Added local ignore rules for runtime state and other machine-specific files so the repository stays safe to push.
 - The README was rewritten to describe the private deployment instead of mirroring the upstream marketing page.
 
+## 2026-05-22: zzshu provider surface cleanup
+
+- Simplified the private provider surface so `zzshu-claude` and `zzshu-gpt` remain as separate entries, while the single `zzshu` wrapper is no longer presented as an active provider.
+- Reconciled `OPENCLAW_ACCESS.md` with the current provider list so the operator docs match the runtime config again.
+- Restarted the Gateway after the config refresh and verified that the service came back healthy with the expected provider set.
+- The main follow-up is to keep the operator docs and the runtime config aligned whenever the provider list changes again.
+
 ## What to log here next
 
 - Any Docker build, rebuild, or prune that changes the runtime image.
