@@ -72,6 +72,13 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - Tightened the archive usage copy so the `/archives` path makes the 5-character code requirement explicit.
 - The operational follow-up is to re-register the Telegram menu after the next restart and confirm the localized descriptions show in the bot command list.
 
+## 2026-05-22: Docker rebuild after Telegram menu/archive fixes
+
+- Rebuilt the local `docker compose` gateway image after the Telegram menu localization and archive-code changes landed.
+- The rebuild completed successfully and the `openclaw-gateway` container was recreated from the fresh image.
+- The runtime image path already includes `fontconfig` and `fonts-noto-cjk`, so this rebuild also keeps the math-image rendering fix in the deployed container.
+- Follow-up: keep the gateway logs handy for the next Telegram command-menu or archive-session check, since the new image is now the source of truth on this host.
+
 ## What to log here next
 
 - Any Docker build, rebuild, or prune that changes the runtime image.
