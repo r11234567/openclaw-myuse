@@ -30,9 +30,10 @@ Deployment steps, rebuild history, certificate work, proxy setup, and other oper
 
 - `src/auto-reply/reply/latex-reply-image.ts` renders LaTeX-heavy replies into a single PNG when raw text would be hard to read or too fragile for downstream transport.
 - `src/auto-reply/reply/get-reply.ts` routes replies through the media fallback when the content demands it.
+- The renderer now probes `fontconfig` for a CJK-capable font before generating Chinese-containing formula images and logs a concrete runtime hint when CJK fonts are missing.
 - The decision was not to keep forcing Telegram markdown or browser-side math parsing to carry every formula.
 - Mixed text and formula output still needs careful layout tuning, but the code path now prefers a readable image over broken markup.
-- The known risk is CJK glyph quality and cramped layout when the reply contains both prose and formulas.
+- The known risk is CJK glyph quality and cramped layout when the runtime image is stale or missing the expected CJK fonts.
 
 ## Phase 5: provider configuration and startup behavior
 

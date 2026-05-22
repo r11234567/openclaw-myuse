@@ -2,7 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const saveMediaBuffer = vi.hoisted(() => vi.fn());
 const sharpFactory = vi.hoisted(() => vi.fn());
+const execFileMock = vi.hoisted(() => vi.fn());
+const logVerboseMock = vi.hoisted(() => vi.fn());
 const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+
+vi.mock("node:child_process", () => ({
+  execFile: execFileMock,
+}));
+
+vi.mock("../../globals.js", () => ({
+  logVerbose: logVerboseMock,
+}));
 
 vi.mock("../../media/store.js", () => ({
   saveMediaBuffer,
@@ -15,13 +25,26 @@ vi.mock("sharp", () => ({
 import {
   renderLatexReplyPayloadToImageIfNeeded,
   replyTextContainsLatex,
+  resetLatexReplyImageFontProbeForTest,
 } from "./latex-reply-image.js";
 
 describe("LaTeX reply image rendering", () => {
   beforeEach(() => {
+    resetLatexReplyImageFontProbeForTest();
     saveMediaBuffer.mockReset().mockResolvedValue({
       path: "/tmp/openclaw-latex-reply.png",
     });
+    execFileMock
+      .mockReset()
+      .mockImplementation(
+        (
+          _file: string,
+          _args: string[],
+          _options: { timeout: number },
+          callback: (error: Error | null, stdout: string, stderr: string) => void,
+        ) => callback(null, "Noto Sans CJK SC\n", ""),
+      );
+    logVerboseMock.mockReset();
     sharpFactory.mockReset().mockReturnValue({
       png: vi.fn().mockReturnValue({
         toBuffer: vi.fn().mockResolvedValue(pngBuffer),
@@ -45,6 +68,13 @@ describe("LaTeX reply image rendering", () => {
     expect(result.mediaUrls).toEqual(["/tmp/openclaw-latex-reply.png"]);
     expect(result.trustedLocalMedia).toBe(true);
     expect(result.sensitiveMedia).toBe(true);
+    expect(execFileMock).toHaveBeenCalledWith(
+      "fc-match",
+      ["-f", "%{family}\n", "Noto Sans CJK SC"],
+      { timeout: 1000 },
+      expect.any(Function),
+    );
+    expect(logVerboseMock).not.toHaveBeenCalled();
     expect(sharpFactory).toHaveBeenCalledTimes(1);
     expect(saveMediaBuffer).toHaveBeenCalledWith(
       pngBuffer,
@@ -61,5 +91,24 @@ describe("LaTeX reply image rendering", () => {
     await expect(renderLatexReplyPayloadToImageIfNeeded(payload)).resolves.toBe(payload);
     expect(sharpFactory).not.toHaveBeenCalled();
     expect(saveMediaBuffer).not.toHaveBeenCalled();
+  });
+
+  it("logs a concrete hint when a Chinese formula reply lacks CJK font support", async () => {
+    execFileMock.mockImplementationOnce(
+      (
+        _file: string,
+        _args: string[],
+        _options: { timeout: number },
+        callback: (error: Error | null, stdout: string, stderr: string) => void,
+      ) => callback(null, "DejaVu Sans\n", ""),
+    );
+
+    await renderLatexReplyPayloadToImageIfNeeded({
+      text: "说明：\\frac{1}{K_p}",
+    });
+
+    expect(logVerboseMock).toHaveBeenCalledWith(
+      expect.stringContaining("Chinese glyphs may render as boxes"),
+    );
   });
 });

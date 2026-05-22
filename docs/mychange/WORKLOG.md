@@ -57,6 +57,14 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - Restarted the Gateway after the config refresh and verified that the service came back healthy with the expected provider set.
 - The main follow-up is to keep the operator docs and the runtime config aligned whenever the provider list changes again.
 
+## 2026-05-22: LaTeX image CJK font diagnosis
+
+- Investigated Telegram math replies that sometimes rendered as raw text, sometimes as PNG, and sometimes produced a generic request failure after the PNG was generated.
+- Confirmed that the source path for math-heavy replies is `src/auto-reply/reply/latex-reply-image.ts`, and that the Docker runtime is expected to include `fontconfig` plus `fonts-noto-cjk`.
+- Confirmed the local shell did not expose `fc-match` or CJK fonts, while the committed Dockerfile already installs the required packages; the practical fix is to rebuild/redeploy the runtime image rather than only changing prompt wording.
+- Added a CJK font probe to the LaTeX reply renderer so future boxed-Chinese failures leave an explicit verbose log that points at missing `fontconfig` or `fonts-noto-cjk`.
+- Follow-up: after pulling this change on the host, rebuild the Docker image and restart the Gateway, then send a Chinese-plus-formula Telegram test reply and check that the text is not rendered as boxes.
+
 ## What to log here next
 
 - Any Docker build, rebuild, or prune that changes the runtime image.

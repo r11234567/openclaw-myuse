@@ -1,4 +1,7 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { saveMediaBuffer } from "../../media/store.js";
+import { logVerbose } from "../../globals.js";
 import type { ReplyPayload } from "../types.js";
 
 const LATEX_COMMAND_NAMES = [
@@ -52,8 +55,9 @@ const LATEX_RE = new RegExp(
   String.raw`\\(?:${LATEX_COMMAND_NAMES.join("|")})(?:\b|(?=[^A-Za-z]))|\$\$?[^$\n]+\$\$?|\\\(|\\\)|\\\[|\\\]`,
 );
 const FONT_FAMILY =
-  "'Noto Sans CJK SC', 'Noto Sans CJK', 'Noto Sans Math', 'DejaVu Sans', Arial, sans-serif";
-const MONO_FONT_FAMILY = "'Noto Sans Mono CJK SC', 'DejaVu Sans Mono', monospace";
+  "'Noto Sans CJK SC', 'Noto Sans SC', 'Source Han Sans SC', 'WenQuanYi Micro Hei', 'Microsoft YaHei', 'PingFang SC', 'Noto Sans Math', 'DejaVu Sans', Arial, sans-serif";
+const MONO_FONT_FAMILY =
+  "'Noto Sans Mono CJK SC', 'Noto Sans Mono CJK', 'WenQuanYi Micro Hei Mono', 'DejaVu Sans Mono', monospace";
 const IMAGE_MAX_WIDTH = 1120;
 const IMAGE_PADDING = 40;
 const BODY_FONT_SIZE = 24;
@@ -63,6 +67,16 @@ const BACKGROUND = "#ffffff";
 const FOREGROUND = "#111827";
 const BORDER = "#d1d5db";
 const CODE_BG = "#f3f4f6";
+const CJK_FONT_PROBE_QUERY = "Noto Sans CJK SC";
+const CJK_FONT_RE =
+  /Noto Sans CJK|Noto Sans SC|Source Han Sans|WenQuanYi|Microsoft YaHei|PingFang|SimHei/i;
+
+const execFileAsync = promisify(execFile);
+let cjkFontProbeLogged = false;
+
+export function resetLatexReplyImageFontProbeForTest(): void {
+  cjkFontProbeLogged = false;
+}
 
 type SvgNode = {
   body: string;
@@ -91,6 +105,30 @@ function escapeXml(value: string): string {
 
 function hasCjk(value: string): boolean {
   return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(value);
+}
+
+async function logMissingCjkFontOnce(text?: string): Promise<void> {
+  if (!text || !hasCjk(text) || cjkFontProbeLogged) {
+    return;
+  }
+  cjkFontProbeLogged = true;
+  try {
+    const result = await execFileAsync(
+      "fc-match",
+      ["-f", "%{family}\n", CJK_FONT_PROBE_QUERY],
+      { timeout: 1000 },
+    );
+    const resolvedFamily = String(result.stdout ?? "").trim();
+    if (!CJK_FONT_RE.test(resolvedFamily)) {
+      logVerbose(
+        `LaTeX reply image CJK font probe resolved "${resolvedFamily || "unknown"}"; Chinese glyphs may render as boxes. Rebuild the runtime image with fonts-noto-cjk/fontconfig installed.`,
+      );
+    }
+  } catch (err) {
+    logVerbose(
+      `LaTeX reply image CJK font probe failed; Chinese glyphs may render as boxes until fontconfig and fonts-noto-cjk are installed: ${String(err)}`,
+    );
+  }
 }
 
 function estimateTextWidth(value: string, fontSize: number): number {
@@ -552,6 +590,7 @@ export async function renderLatexReplyPayloadToImageIfNeeded(
   }
 
   const sharp = (await import("sharp")).default;
+  await logMissingCjkFontOnce(text);
   const svg = renderReplySvg(text ?? "");
   const png = await sharp(Buffer.from(svg)).png({ compressionLevel: 9 }).toBuffer();
   const saved = await saveMediaBuffer(
