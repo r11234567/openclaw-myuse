@@ -101,6 +101,15 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - Ran targeted skill-installer, Telegram command/archive, LaTeX image, Docker Compose config, and SearXNG JSON-search checks.
 - No OpenClaw image rebuild was performed during this source update.
 
+## 2026-05-23: runtime rebuild for 2026.5.20
+
+- Built a fresh `openclaw:latest` image from the rebased 2026.5.20 source.
+- Cleared BuildKit cache after the build; Docker reported zero build cache and about 4.9GB total active image storage afterward.
+- Recreated `openclaw-gateway` from the new image while keeping SearXNG running.
+- Verified the gateway reports version `2026.5.20`, `/healthz` returns live, and container health is healthy.
+- Verified SearXNG is reachable from the gateway container at `http://searxng:8080` and returns JSON search results.
+- Verified requested skill binaries are present in the runtime image: `gh`, `jq`, `rg`, `ffmpeg`, `clawhub`, `mcporter`, and `nano-pdf`.
+
 ## What to log here next
 
 - Any Docker build, rebuild, or prune that changes the runtime image.
