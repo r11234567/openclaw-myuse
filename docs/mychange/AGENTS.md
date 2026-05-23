@@ -47,6 +47,7 @@ For build, run, and health-check commands, see OPERATIONS.md.
 - Keep test coverage focused around the command and session flow, not only around surface strings.
 - Short, unique session codes are preferred over rotating numeric labels because they are easier to copy and less ambiguous.
 - Keep the operator docs split by role: WORKLOG for live operations, AGENTS for background, OPERATIONS for commands, CHANGELOG for source changes, and OPENCLAW_ACCESS for entry paths.
+- Treat each `skills/<name>` directory as a separate Gateway-visible skill surface; do not create a second directory just to add an alias for an existing skill.
 
 ## Error handling stance
 

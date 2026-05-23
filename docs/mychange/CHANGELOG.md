@@ -49,6 +49,14 @@ Deployment steps, rebuild history, certificate work, proxy setup, and other oper
 - The tests are there to lock in the command flow, not to freeze every visible string.
 - This branch prefers small tests around command/session boundaries because that is where the regressions kept appearing.
 
+## Phase 7: apt-capable skill installers and Linux skill metadata
+
+- `src/agents/skills/frontmatter.ts`, `src/agents/skills/types.ts`, `src/plugins/hook-types.ts`, `src/plugins/install-security-scan.ts`, and `src/plugins/install-security-scan.runtime.ts` now accept `apt` install specs instead of treating brew/node/go/uv/download as the only installer kinds.
+- `src/agents/skills-install.ts` can resolve `apt-get` installs, including root and sudo-based flows, with package-name validation kept strict.
+- `src/agents/skills-status.ts` now surfaces apt packages in the installer preference and label selection path.
+- `skills/github/SKILL.md` now advertises the Linux apt branch for `gh`.
+- The practical decision was to make Linux skill prerequisites expressible in metadata without inventing ad hoc manual install steps in the runtime container.
+
 ## Concrete decisions
 
 - `/new` archives the current Telegram conversation instead of deleting it.
@@ -58,6 +66,7 @@ Deployment steps, rebuild history, certificate work, proxy setup, and other oper
 - Markdown and browser math parsing are not reliable enough to be the only reply format for LaTeX-heavy answers.
 - Provider startup must fail visibly if the config points at the wrong env names.
 - Live model switching is not guaranteed to succeed if the session is pinned or the auth state is wrong, so the code should not pretend otherwise.
+- Skill install metadata can include distro package installs, but alias-only skill names should not be duplicated as separate directories unless a separate Gateway surface is actually intended.
 
 ## Pitfalls that shaped the code
 

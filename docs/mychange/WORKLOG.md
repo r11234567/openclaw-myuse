@@ -79,6 +79,13 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - The runtime image path already includes `fontconfig` and `fonts-noto-cjk`, so this rebuild also keeps the math-image rendering fix in the deployed container.
 - Follow-up: keep the gateway logs handy for the next Telegram command-menu or archive-session check, since the new image is now the source of truth on this host.
 
+## 2026-05-23: skill installer docs and source sync
+
+- Updated the source and operator docs to reflect apt-capable skill installs and the Linux `gh` branch in `skills/github/SKILL.md`.
+- Kept runtime package installation inside the Dockerfile instead of doing ad hoc installs in the running container.
+- Avoided a Docker rebuild for this pass; the work stayed at the source and docs layer.
+- Committed the source changes and pushed the branch to `origin/my-changes`.
+
 ## What to log here next
 
 - Any Docker build, rebuild, or prune that changes the runtime image.
@@ -86,6 +93,7 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - Any provider, Telegram, or Gateway config edit that required a restart.
 - Any proxy, access, or authentication change.
 - Any failure with a useful timestamp, exact symptom, and the file or command that fixed it.
+- Any skill installer change that affects runtime prerequisites, install metadata, or operator-facing skill availability.
 
 ## How to update this worklog
 
