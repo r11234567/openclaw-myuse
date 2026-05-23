@@ -11,13 +11,14 @@ It keeps the Gateway and CLI in one Docker runtime, uses Telegram as a controlle
 - Uses Telegram as a locked-down operator channel.
 - Preserves conversation history with archive, switch, and delete flows.
 - Renders math-heavy replies as images when raw text would be hard to read.
+- Provides a local SearXNG search service for self-hosted network search.
 - Exposes the Gateway locally first, then through nginx and public TLS when needed.
 
 ## Deployment shape
 
 1. Clone the private repo and keep `upstream` pointed at the official OpenClaw repository.
 2. Fill `.env` and the local OpenClaw config with provider endpoints, API keys, Telegram token, Telegram allowlist, and any DNS API credentials needed for ACME.
-3. Build and start the Docker stack.
+3. Build and start the Docker stack, including SearXNG when network search is needed.
 4. Check the Gateway logs and health output before trusting the UI.
 5. Expose the Gateway through nginx only after authentication and proxy headers are correct.
 6. Keep the CLI available for day-to-day operator commands such as `doctor`, `models`, `devices`, `pairing`, and session inspection.

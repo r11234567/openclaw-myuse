@@ -1,0 +1,14 @@
+# Local private SearXNG instance for OpenClaw network-search.
+# See https://docs.searxng.org/admin/settings/settings.html#settings-use-default-settings
+use_default_settings: true
+
+search:
+  safe_search: 0
+  formats:
+    - html
+    - json
+
+server:
+  bind_address: "0.0.0.0"
+  limiter: false
+  image_proxy: true

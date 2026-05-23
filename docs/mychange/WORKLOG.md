@@ -86,6 +86,13 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - Avoided a Docker rebuild for this pass; the work stayed at the source and docs layer.
 - Committed the source changes and pushed the branch to `origin/my-changes`.
 
+## 2026-05-23: self-hosted search service wiring
+
+- Added a Docker Compose `searxng` service with local loopback exposure and JSON output enabled for OpenClaw network search.
+- Set the intended search order to SearXNG first, DuckDuckGo MCP second, Google Custom Search third, and Apify only as a last-resort extraction fallback.
+- Kept SearXNG private to the Docker stack plus `127.0.0.1:${SEARXNG_HOST_PORT:-18080}` for local testing; no public nginx route was added.
+- No Docker rebuild was performed during this wiring pass.
+
 ## What to log here next
 
 - Any Docker build, rebuild, or prune that changes the runtime image.

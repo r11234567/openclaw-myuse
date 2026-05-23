@@ -61,6 +61,13 @@ docker compose up -d openclaw-gateway
 docker compose logs -f openclaw-gateway
 ```
 
+Network search runs through the bundled SearXNG service when enabled:
+
+```bash
+docker compose up -d searxng
+curl "http://127.0.0.1:${SEARXNG_HOST_PORT:-18080}/search?q=openclaw&format=json"
+```
+
 Useful health checks:
 
 ```bash
@@ -107,6 +114,7 @@ The safest default is loopback-only gateway access:
 
 - Gateway: `127.0.0.1:18789`
 - Local nginx proxy: `127.0.0.1:8080`
+- Local SearXNG: `127.0.0.1:${SEARXNG_HOST_PORT:-18080}`
 
 This keeps the Gateway off the public interface while still allowing browser access from the host.
 If you need remote access, use authenticated nginx with ACME TLS and keep gateway auth on.
