@@ -165,7 +165,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates curl fontconfig fonts-noto-cjk fonts-noto-color-emoji git hostname lsof openssl procps python3 tini && \
+      ca-certificates curl ffmpeg fontconfig fonts-noto-cjk fonts-noto-color-emoji gh git hostname jq lsof openssl procps python3 ripgrep tini && \
     update-ca-certificates
 
 RUN chown node:node /app
@@ -213,7 +213,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 
 # Install additional Python packages needed by your plugins or skills.
 # Example: docker build --build-arg OPENCLAW_IMAGE_PIP_PACKAGES="requests humanize" .
-ARG OPENCLAW_IMAGE_PIP_PACKAGES=""
+ARG OPENCLAW_IMAGE_PIP_PACKAGES="nano-pdf"
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     if [ -n "$OPENCLAW_IMAGE_PIP_PACKAGES" ]; then \
@@ -222,6 +222,13 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-pip; \
       fi && \
       python3 -m pip install --no-cache-dir --break-system-packages $OPENCLAW_IMAGE_PIP_PACKAGES; \
+    fi
+
+# Install additional Node CLI packages needed by requested skills.
+# Example: docker build --build-arg OPENCLAW_IMAGE_NPM_PACKAGES="clawhub mcporter" .
+ARG OPENCLAW_IMAGE_NPM_PACKAGES="clawhub mcporter"
+RUN if [ -n "$OPENCLAW_IMAGE_NPM_PACKAGES" ]; then \
+      npm install -g --omit=dev $OPENCLAW_IMAGE_NPM_PACKAGES; \
     fi
 
 # Optionally install Chromium and Xvfb for browser automation.
