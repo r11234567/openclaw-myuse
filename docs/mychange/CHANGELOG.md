@@ -1,84 +1,38 @@
 # Source Change Log
 
-This file records source-code changes only.
-Deployment steps, rebuild history, certificate work, proxy setup, and other operator notes belong in `WORKLOG.md`.
+Source behavior only. Rebuilds, deployment, nginx, certificates, and live operations belong in `WORKLOG.md`.
 
-## Phase 1: session lifecycle and reset semantics
+## Session And Telegram
 
-- `src/auto-reply/reply/session.ts` now decides more explicitly when a turn becomes a fresh session, a reuse, or an archive rollover.
-- `src/auto-reply/reply/commands-reset.ts`, `src/auto-reply/reply/commands-reset-hooks.ts`, and the related session reset files translate `/new` and `/reset` into the session state machine instead of treating them as plain text commands.
-- Empty command-only turns are guarded so they do not become useless archives.
-- The design decision was to preserve recoverability: archive on `/new`, do not silently delete the prior conversation.
-- The main failure mode here was session-lock and takeover contention during live model switching, so the code had to surface the real boundary instead of hiding it behind a generic Telegram failure.
+- `/new` and `/reset` are routed through the session state machine instead of plain text handling.
+- `/new` preserves recoverability by archiving the current Telegram conversation.
+- Empty command-only turns are guarded so they do not create useless archives.
+- Telegram archive commands support list, switch, current-chat filtering, and delete.
+- Archive codes are short, stable 5-character identifiers.
+- Telegram command menu and user-facing command copy were localized toward Chinese while keeping compatibility aliases internal.
 
-## Phase 2: Telegram archive commands and command surface
+## Reply Rendering
 
-- `src/auto-reply/reply/commands-telegram-archives.ts` owns archive listing, archive switching, current-chat filtering, and archive deletion.
-- Short hash-style archive codes replaced the old rotating numeric labels so the user can copy and paste a stable identifier, and the code now stays fixed at 5 characters.
-- The command surface was kept chat-local: Telegram should only see archives created in that Telegram flow, not gateway-created sessions from elsewhere.
-- Compatibility aliases such as `/tg_*` remain available, but they are only aliases; the human-facing command surface stays centered on the plain Telegram commands.
-- Tests around archive listing, current-chat filtering, and delete behavior were kept close to the handler so the chat-local contract stays visible.
+- LaTeX-heavy replies can be rendered as a PNG when raw text or Markdown is unreliable.
+- The renderer probes for CJK-capable fonts and logs a concrete hint when `fontconfig` or CJK fonts are missing.
+- Mixed text/formula layout still needs careful visual review after image/runtime changes.
 
-## Phase 3: localized command registry and Telegram UX
+## Providers And Startup
 
-- `src/auto-reply/commands-registry.shared.ts`, `src/auto-reply/commands-localization.ts`, and `src/auto-reply/commands-text-routing.ts` carry the command metadata and the localized command text.
-- The visible Telegram command menu and replies were adjusted toward Chinese where the surface is user-facing, and Telegram menu sync now accepts `zh-CN` description localizations.
-- The choice was to localize stable user-facing command text while keeping internal aliases and handler names intact for compatibility.
-- The risk here was drift between the command registry, the menu, and the reply copy, so the registry and localization layers stayed aligned.
+- Non-standard providers are configured as explicit OpenAI-compatible or Anthropic-compatible entries.
+- Provider model sets are explicit; stale env names and missing provider secrets should fail visibly.
+- The default model tracks the working runtime provider rather than stale defaults.
 
-## Phase 4: math reply rendering
+## Skills And Installers
 
-- `src/auto-reply/reply/latex-reply-image.ts` renders LaTeX-heavy replies into a single PNG when raw text would be hard to read or too fragile for downstream transport.
-- `src/auto-reply/reply/get-reply.ts` routes replies through the media fallback when the content demands it.
-- The renderer now probes `fontconfig` for a CJK-capable font before generating Chinese-containing formula images and logs a concrete runtime hint when CJK fonts are missing.
-- The decision was not to keep forcing Telegram markdown or browser-side math parsing to carry every formula.
-- Mixed text and formula output still needs careful layout tuning, but the code path now prefers a readable image over broken markup.
-- The known risk is CJK glyph quality and cramped layout when the runtime image is stale or missing the expected CJK fonts.
+- Skill install metadata now accepts `apt` installers in addition to brew/node/go/uv/download.
+- `skills/github/SKILL.md` advertises Linux apt installation for `gh`.
+- Runtime skill dependencies are installed through Dockerfile/build configuration, not ad hoc container installs.
+- `network-search` prefers SearXNG, then DuckDuckGo MCP, then Google Custom Search, with Apify reserved as a last-resort extraction fallback.
 
-## Phase 5: provider configuration and startup behavior
+## Decisions To Preserve
 
-- `src/config/config.ts`, `src/config/io.ts`, and the provider/model catalog code were updated so non-standard providers can be wired as explicit OpenAI-compatible or Anthropic-compatible entries.
-- The provider model set was made explicit instead of relying on stale env names or stale defaults.
-- The default model was moved to the working provider that matches the current runtime configuration.
-- The important design choice was fail-fast startup: a missing or mismatched provider secret should stop the Gateway early rather than allow a misleading partial boot.
-- The main pitfall was that a config file can look correct while the runtime still resolves an old env key or a missing auth profile.
-
-## Phase 6: tests and guard rails
-
-- The session, archive, localization, and reply-rendering code paths were backed by focused tests instead of only end-to-end smoke checks.
-- The tests are there to lock in the command flow, not to freeze every visible string.
-- This branch prefers small tests around command/session boundaries because that is where the regressions kept appearing.
-
-## Phase 7: apt-capable skill installers and Linux skill metadata
-
-- `src/agents/skills/frontmatter.ts`, `src/agents/skills/types.ts`, `src/plugins/hook-types.ts`, `src/plugins/install-security-scan.ts`, and `src/plugins/install-security-scan.runtime.ts` now accept `apt` install specs instead of treating brew/node/go/uv/download as the only installer kinds.
-- `src/agents/skills-install.ts` can resolve `apt-get` installs, including root and sudo-based flows, with package-name validation kept strict.
-- `src/agents/skills-status.ts` now surfaces apt packages in the installer preference and label selection path.
-- `skills/github/SKILL.md` now advertises the Linux apt branch for `gh`.
-- The practical decision was to make Linux skill prerequisites expressible in metadata without inventing ad hoc manual install steps in the runtime container.
-
-## Concrete decisions
-
-- `/new` archives the current Telegram conversation instead of deleting it.
-- Empty command-only sessions do not deserve archive slots.
-- Archive codes should be short and stable enough to copy directly.
-- Telegram-only compatibility aliases should exist, but they should not define the mental model of the feature.
-- Markdown and browser math parsing are not reliable enough to be the only reply format for LaTeX-heavy answers.
-- Provider startup must fail visibly if the config points at the wrong env names.
-- Live model switching is not guaranteed to succeed if the session is pinned or the auth state is wrong, so the code should not pretend otherwise.
-- Skill install metadata can include distro package installs, but alias-only skill names should not be duplicated as separate directories unless a separate Gateway surface is actually intended.
-
-## Pitfalls that shaped the code
-
-- Generic failures such as `Something went wrong while processing your request` were too vague to treat as a root cause.
-- Provider and session errors can look like Telegram problems even when the real boundary is the model/config layer.
-- A successful build does not mean the Gateway is healthy.
-- Browser UI startup issues are not always backend issues.
-- Short archive IDs are more usable than rotating integers, but they need good command-menu text to stay discoverable.
-
-## How to update this changelog
-
-- Put each new source change under the phase where the code decision actually happened.
-- Start a new phase when the module boundary, risk surface, or runtime behavior changes.
-- Keep deployment history out of this file; add that to `WORKLOG.md` instead.
-- When a worklog entry mentions a source change, point it back here by phase name.
+- Telegram archives are chat-local.
+- Compatibility aliases may exist, but they should not define the visible UX.
+- Live model switching can fail on session locks or auth state; surface that instead of masking it.
+- Alias-only skills should not become extra Gateway-visible directories.
