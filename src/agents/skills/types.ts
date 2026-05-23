@@ -2,7 +2,7 @@ import type { Skill } from "./skill-contract.js";
 
 export type SkillInstallSpec = {
   id?: string;
-  kind: "brew" | "node" | "go" | "uv" | "download";
+  kind: "brew" | "apt" | "node" | "go" | "uv" | "download";
   label?: string;
   bins?: string[];
   os?: string[];

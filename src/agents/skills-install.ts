@@ -40,6 +40,7 @@ type SkillsInstallDeps = {
   resolveNodeInstallStateDir: () => string;
   resolveBrewExecutable: () => string | undefined;
   isContainerEnvironment: () => boolean;
+  getuid: () => number | undefined;
   resolveSkillsInstallPreferences: typeof defaultResolveSkillsInstallPreferences;
 };
 
@@ -49,6 +50,7 @@ const defaultSkillsInstallDeps: SkillsInstallDeps = {
   resolveNodeInstallStateDir: resolveDefaultNodeInstallStateDir,
   resolveBrewExecutable: defaultResolveBrewExecutable,
   isContainerEnvironment: defaultIsContainerEnvironment,
+  getuid: () => process.getuid?.(),
   resolveSkillsInstallPreferences: defaultResolveSkillsInstallPreferences,
 };
 
@@ -146,6 +148,7 @@ async function buildNodeInstallEnv(prefs: SkillsInstallPreferences): Promise<Nod
 
 // Strict allowlist patterns to prevent option injection and malicious package names.
 const SAFE_BREW_FORMULA = /^[a-z0-9][a-z0-9+._@-]*(\/[a-z0-9][a-z0-9+._@-]*){0,2}$/;
+const SAFE_APT_PACKAGE = /^[a-z0-9][a-z0-9+._-]*$/i;
 const SAFE_NODE_PACKAGE = /^(@[a-z0-9._-]+\/)?[a-z0-9._-]+(@[a-z0-9^~>=<.*|-]+)?$/;
 const SAFE_GO_MODULE = /^[a-zA-Z0-9][a-zA-Z0-9._/-]*@[a-z0-9v._-]+$/;
 const SAFE_UV_PACKAGE =
@@ -179,6 +182,16 @@ function buildInstallCommand(
         return { argv: null, error: err };
       }
       return { argv: ["brew", "install", spec.formula.trim()] };
+    }
+    case "apt": {
+      if (!spec.package) {
+        return { argv: null, error: "missing apt package" };
+      }
+      const err = assertSafeInstallerValue(spec.package, "apt package", SAFE_APT_PACKAGE);
+      if (err) {
+        return { argv: null, error: err };
+      }
+      return { argv: ["apt-get", "install", "-y", spec.package.trim()] };
     }
     case "node": {
       if (!spec.package) {
@@ -321,6 +334,66 @@ function resolveBrewMissingFailure(spec: SkillInstallSpec): SkillInstallResult {
   return createInstallFailure({ message: `brew not installed — ${hint}` });
 }
 
+async function installAptPackage(params: {
+  packageName: string;
+  timeoutMs: number;
+}): Promise<SkillInstallResult> {
+  const deps = getSkillsInstallDeps();
+  const pkg = params.packageName.trim();
+  const aptInstallArgv = ["apt-get", "install", "-y", pkg];
+  const aptUpdateArgv = ["apt-get", "update", "-qq"];
+  const aptFailureMessage = `apt install failed for "${pkg}". Install it manually with your system package manager.`;
+
+  if (!deps.hasBinary("apt-get")) {
+    return createInstallFailure({
+      message: `apt-get not installed — install "${pkg}" manually with your system package manager.`,
+    });
+  }
+
+  if (deps.getuid() === 0) {
+    // Best effort: fresh containers often need package indexes populated.
+    await runBestEffortCommand(aptUpdateArgv, { timeoutMs: params.timeoutMs });
+    const aptResult = await runCommandSafely(aptInstallArgv, { timeoutMs: params.timeoutMs });
+    if (aptResult.code === 0) {
+      return createInstallSuccess(aptResult);
+    }
+    return createInstallFailure({
+      message: aptFailureMessage,
+      ...aptResult,
+    });
+  }
+
+  if (!deps.hasBinary("sudo")) {
+    return createInstallFailure({
+      message: `apt-get is available but sudo is not installed. Install "${pkg}" manually with your system package manager.`,
+    });
+  }
+
+  const sudoCheck = await runCommandSafely(["sudo", "-n", "true"], {
+    timeoutMs: 5_000,
+  });
+  if (sudoCheck.code !== 0) {
+    return createInstallFailure({
+      message: `apt-get is available but sudo is not usable (missing or requires a password). Install "${pkg}" manually with your system package manager.`,
+      ...sudoCheck,
+    });
+  }
+
+  // Best effort: fresh containers often need package indexes populated.
+  await runBestEffortCommand(["sudo", ...aptUpdateArgv], { timeoutMs: params.timeoutMs });
+  const aptResult = await runCommandSafely(["sudo", ...aptInstallArgv], {
+    timeoutMs: params.timeoutMs,
+  });
+  if (aptResult.code === 0) {
+    return createInstallSuccess(aptResult);
+  }
+
+  return createInstallFailure({
+    message: aptFailureMessage,
+    ...aptResult,
+  });
+}
+
 async function ensureUvInstalled(params: {
   spec: SkillInstallSpec;
   brewExe?: string;
@@ -356,7 +429,7 @@ async function installGoViaApt(timeoutMs: number): Promise<SkillInstallResult | 
   const aptFailureMessage =
     "go not installed — automatic install via apt failed. Install manually: https://go.dev/doc/install";
 
-  const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+  const isRoot = getSkillsInstallDeps().getuid() === 0;
   if (isRoot) {
     // Best effort: fresh containers often need package indexes populated.
     await runBestEffortCommand(aptUpdateArgv, { timeoutMs });
@@ -538,6 +611,21 @@ export async function installSkill(params: SkillInstallRequest): Promise<SkillIn
       },
       warnings,
     );
+  }
+  if (spec.kind === "apt") {
+    if (!spec.package) {
+      return withWarnings(
+        {
+          ok: false,
+          message: "missing apt package",
+          stdout: "",
+          stderr: "",
+          code: null,
+        },
+        warnings,
+      );
+    }
+    return withWarnings(await installAptPackage({ packageName: spec.package, timeoutMs }), warnings);
   }
 
   const brewExe = deps.hasBinary("brew") ? "brew" : deps.resolveBrewExecutable();

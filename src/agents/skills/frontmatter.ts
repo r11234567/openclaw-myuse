@@ -26,6 +26,7 @@ export function parseFrontmatter(content: string): ParsedSkillFrontmatter {
 }
 
 const BREW_FORMULA_PATTERN = /^[A-Za-z0-9][A-Za-z0-9@+._/-]*$/;
+const APT_PACKAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9+._-]*$/;
 const GO_MODULE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._~+\-/]*(?:@[A-Za-z0-9][A-Za-z0-9._~+\-/]*)?$/;
 const UV_PACKAGE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\-[\]=<>!~+,]*$/;
 
@@ -41,6 +42,20 @@ function normalizeSafeBrewFormula(raw: unknown): string | undefined {
     return undefined;
   }
   return formula;
+}
+
+function normalizeSafeAptPackage(raw: unknown): string | undefined {
+  if (typeof raw !== "string") {
+    return undefined;
+  }
+  const pkg = raw.trim();
+  if (!pkg || pkg.startsWith("-") || pkg.includes("\\") || pkg.includes("..")) {
+    return undefined;
+  }
+  if (!APT_PACKAGE_PATTERN.test(pkg)) {
+    return undefined;
+  }
+  return pkg;
 }
 
 function normalizeSafeNpmSpec(raw: unknown): string | undefined {
@@ -110,7 +125,14 @@ function normalizeSafeDownloadUrl(raw: unknown): string | undefined {
 }
 
 function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
-  const parsed = parseOpenClawManifestInstallBase(input, ["brew", "node", "go", "uv", "download"]);
+  const parsed = parseOpenClawManifestInstallBase(input, [
+    "brew",
+    "apt",
+    "node",
+    "go",
+    "uv",
+    "download",
+  ]);
   if (!parsed) {
     return undefined;
   }
@@ -128,6 +150,10 @@ function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
   const formula = normalizeSafeBrewFormula(raw.formula);
   if (formula) {
     spec.formula = formula;
+  }
+  const aptPackage = normalizeSafeAptPackage(raw.package);
+  if (spec.kind === "apt" && aptPackage) {
+    spec.package = aptPackage;
   }
   const cask = normalizeSafeBrewFormula(raw.cask);
   if (!spec.formula && cask) {
@@ -166,6 +192,9 @@ function parseInstallSpec(input: unknown): SkillInstallSpec | undefined {
   }
 
   if (spec.kind === "brew" && !spec.formula) {
+    return undefined;
+  }
+  if (spec.kind === "apt" && !spec.package) {
     return undefined;
   }
   if (spec.kind === "node" && !spec.package) {

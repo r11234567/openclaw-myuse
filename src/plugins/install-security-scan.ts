@@ -21,7 +21,7 @@ export type PluginInstallRequestKind =
 
 export type SkillInstallSpecMetadata = {
   id?: string;
-  kind: "brew" | "node" | "go" | "uv" | "download";
+  kind: "brew" | "apt" | "node" | "go" | "uv" | "download";
   label?: string;
   bins?: string[];
   os?: string[];

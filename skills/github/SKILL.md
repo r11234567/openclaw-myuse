@@ -21,6 +21,7 @@ metadata:
               "kind": "apt",
               "package": "gh",
               "bins": ["gh"],
+              "os": ["linux"],
               "label": "Install GitHub CLI (apt)",
             },
           ],

@@ -79,22 +79,27 @@ function selectPreferredInstallSpec(
     indexed.find((item) => item.spec.kind === kind);
 
   const brewSpec = findKind("brew");
+  const aptSpec = findKind("apt");
   const nodeSpec = findKind("node");
   const goSpec = findKind("go");
   const uvSpec = findKind("uv");
   const downloadSpec = findKind("download");
   const brewAvailable = hasBinary("brew");
+  const aptAvailable = hasBinary("apt-get");
 
   // Table-driven preference chain; first match wins.
   const pickers: Array<() => { spec: SkillInstallSpec; index: number } | undefined> = [
     () => (prefs.preferBrew && brewAvailable ? brewSpec : undefined),
     () => uvSpec,
     () => nodeSpec,
+    () => (aptAvailable ? aptSpec : undefined),
     // Only prefer brew when available to avoid guaranteed failure on Linux/Docker.
     () => (brewAvailable ? brewSpec : undefined),
     () => goSpec,
     // Prefer download over an unavailable brew spec.
     () => downloadSpec,
+    // Surface apt as a fallback when the package manager is absent from PATH.
+    () => aptSpec,
     // Last resort: surface descriptive brew-missing error instead of "no installer found".
     () => brewSpec,
     () => indexed[0],
@@ -145,6 +150,8 @@ function normalizeInstallOptions(
     if (!label) {
       if (spec.kind === "brew" && spec.formula) {
         label = `Install ${spec.formula} (brew)`;
+      } else if (spec.kind === "apt" && spec.package) {
+        label = `Install ${spec.package} (apt)`;
       } else if (spec.kind === "node" && spec.package) {
         label = `Install ${spec.package} (${prefs.nodeManager})`;
       } else if (spec.kind === "go" && spec.module) {
