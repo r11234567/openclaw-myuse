@@ -93,6 +93,14 @@ Check this first when something breaks, a rebuild changes behavior, or a deploym
 - Kept SearXNG private to the Docker stack plus `127.0.0.1:${SEARXNG_HOST_PORT:-18080}` for local testing; no public nginx route was added.
 - No Docker rebuild was performed during this wiring pass.
 
+## 2026-05-23: upstream 2026.5.20 rebase
+
+- Fetched upstream tags and confirmed `v2026.5.20` is the latest stable tag available locally; later 2026.5.21/2026.5.22 refs were prerelease or release branches at this point.
+- Rebased the private `my-changes` branch onto `v2026.5.20`, preserving the private Docker, Telegram, provider, skill installer, and SearXNG changes.
+- Verified `package.json` now reports `2026.5.20`.
+- Ran targeted skill-installer, Telegram command/archive, LaTeX image, Docker Compose config, and SearXNG JSON-search checks.
+- No OpenClaw image rebuild was performed during this source update.
+
 ## What to log here next
 
 - Any Docker build, rebuild, or prune that changes the runtime image.
