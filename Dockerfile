@@ -10,6 +10,7 @@
 # Build stages use full bookworm; the runtime image is always bookworm-slim.
 ARG OPENCLAW_EXTENSIONS=""
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
+ARG OPENCLAW_BUILD_NODE_OPTIONS="--max-old-space-size=1536"
 ARG OPENCLAW_NODE_BOOKWORM_IMAGE="node:24-bookworm@sha256:3a09aa6354567619221ef6c45a5051b671f953f0a1924d1f819ffb236e520e6b"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE="node:24-bookworm-slim@sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST="sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
@@ -49,6 +50,7 @@ RUN --mount=type=bind,source=packages,target=/tmp/packages,readonly \
 FROM ${OPENCLAW_BUN_IMAGE} AS bun-binary
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS build
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
+ARG OPENCLAW_BUILD_NODE_OPTIONS
 
 # Copy pinned Bun binary from the official image instead of fetching via curl.
 COPY --link --from=bun-binary /usr/local/bin/bun /usr/local/bin/bun
@@ -67,10 +69,10 @@ COPY --link scripts/lib/package-dist-imports.mjs ./scripts/lib/package-dist-impo
 COPY --link --from=workspace-deps /out/packages/ ./packages/
 COPY --link --from=workspace-deps /out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/ ./${OPENCLAW_BUNDLED_PLUGIN_DIR}/
 
-# Reduce OOM risk on low-memory hosts during dependency installation.
+# Reduce OOM risk on low-memory hosts during dependency installation and build.
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
 RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
-    NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile \
+    NODE_OPTIONS="$OPENCLAW_BUILD_NODE_OPTIONS" pnpm install --frozen-lockfile \
       --config.supportedArchitectures.os=linux \
       --config.supportedArchitectures.cpu="$(node -p 'process.arch')" \
       --config.supportedArchitectures.libc=glibc && \
@@ -112,11 +114,11 @@ RUN pnpm_config_verify_deps_before_run=false pnpm canvas:a2ui:bundle || \
      echo "/* A2UI bundle unavailable in this build */" > extensions/canvas/src/host/a2ui/a2ui.bundle.js && \
      echo "stub" > extensions/canvas/src/host/a2ui/.bundle.hash && \
      rm -rf vendor/a2ui apps/shared/OpenClawKit/Tools/CanvasA2UI)
-RUN NODE_OPTIONS=--max-old-space-size=8192 pnpm_config_verify_deps_before_run=false pnpm build:docker
+RUN NODE_OPTIONS="$OPENCLAW_BUILD_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm build:docker
 # Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV OPENCLAW_PREFER_PNPM=1
-RUN pnpm_config_verify_deps_before_run=false pnpm ui:build
-RUN pnpm_config_verify_deps_before_run=false pnpm qa:lab:build
+RUN NODE_OPTIONS="$OPENCLAW_BUILD_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm ui:build
+RUN NODE_OPTIONS="$OPENCLAW_BUILD_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm qa:lab:build
 
 # Prune dev dependencies and strip build-only metadata before copying
 # runtime assets into the final image.
@@ -171,16 +173,16 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 
 RUN chown node:node /app
 
-COPY --link --from=runtime-assets --chown=node:node /app/dist ./dist
-COPY --link --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
-COPY --link --from=runtime-assets --chown=node:node /app/package.json .
-COPY --link --from=runtime-assets --chown=node:node /app/pnpm-workspace.yaml .
-COPY --link --from=runtime-assets --chown=node:node /app/patches ./patches
-COPY --link --from=runtime-assets --chown=node:node /app/openclaw.mjs .
-COPY --link --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
-COPY --link --from=runtime-assets --chown=node:node /app/skills ./skills
-COPY --link --from=runtime-assets --chown=node:node /app/docs ./docs
-COPY --link --from=runtime-assets --chown=node:node /app/qa ./qa
+COPY --from=runtime-assets --chown=node:node /app/dist ./dist
+COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
+COPY --from=runtime-assets --chown=node:node /app/package.json .
+COPY --from=runtime-assets --chown=node:node /app/pnpm-workspace.yaml .
+COPY --from=runtime-assets --chown=node:node /app/patches ./patches
+COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
+COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
+COPY --from=runtime-assets --chown=node:node /app/skills ./skills
+COPY --from=runtime-assets --chown=node:node /app/docs ./docs
+COPY --from=runtime-assets --chown=node:node /app/qa ./qa
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
