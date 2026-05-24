@@ -36,6 +36,24 @@ function telegramUserMessage(chatId: string, text: string): string {
   });
 }
 
+function telegramAssistantMessage(text: string): string {
+  return transcriptLine({
+    type: "message",
+    id: `assistant-${text}`,
+    message: {
+      role: "assistant",
+      content: text,
+    },
+  });
+}
+
+function branchSummaryLine(summary: string): string {
+  return transcriptLine({
+    type: "branch_summary",
+    summary,
+  });
+}
+
 async function writeTranscript(filePath: string, sessionId: string, chatId: string): Promise<void> {
   await fs.writeFile(
     filePath,
@@ -132,6 +150,28 @@ describe("handleTelegramArchivesCommand", () => {
     expect(result?.reply?.text).not.toContain("other-chat");
     expect(result?.reply?.text).not.toContain("command-only");
     expect(result?.reply?.text).not.toContain("dashboard");
+  });
+
+  it("prefers an archive summary over the latest user message", async () => {
+    const dir = await makeTempSessionsDir();
+    const archivedPath = path.join(dir, "topic.jsonl.reset.2026-05-20T10-00-00.000Z");
+    await fs.writeFile(
+      archivedPath,
+      transcriptLine({ type: "session", id: "topic" }) +
+        telegramUserMessage("111", "先讨论 gateway restart") +
+        branchSummaryLine("会话总结：gateway restart completed successfully") +
+        telegramUserMessage("111", "最后一句只是补充说明") +
+        telegramAssistantMessage("The gateway restart completed successfully. Tell the operator to retry."),
+    );
+
+    const result = await handleTelegramArchivesCommand(
+      buildParams({ command: "/archives", sessionsDir: dir }),
+      true,
+    );
+
+    expect(result?.reply?.text).toContain("会话总结：gateway restart completed successfully");
+    expect(result?.reply?.text).not.toContain("最后一句只是补充说明");
+    expect(result?.reply?.text).not.toContain("The gateway restart completed successfully");
   });
 
   it("keeps archive codes stable at five characters", async () => {

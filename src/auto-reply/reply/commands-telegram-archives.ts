@@ -24,7 +24,7 @@ type ParsedTelegramArchive = {
   archivePath: string;
   archivedAtMs: number;
   firstUserText?: string;
-  lastUserText?: string;
+  titleText?: string;
   messageCount: number;
   code?: string;
 };
@@ -112,6 +112,13 @@ function summarizeUserText(text: string | undefined): string | undefined {
   return summary.replace(/\s+/gu, " ").slice(0, 80);
 }
 
+function summarizeArchiveText(text: string | undefined): string | undefined {
+  if (!text) {
+    return undefined;
+  }
+  return text.replace(/\s+/gu, " ").trim().slice(0, 80);
+}
+
 function textHasTelegramChatMetadata(text: string | undefined, chatId: string): boolean {
   if (!text) {
     return false;
@@ -136,7 +143,7 @@ function parseArchiveTranscript(params: {
   let sessionId = path.basename(params.filePath).replace(ARCHIVE_SUFFIX_RE, "");
   let archiveCode: string | undefined;
   let firstUserText: string | undefined;
-  let lastUserText: string | undefined;
+  let titleText: string | undefined;
   let messageCount = 0;
   let belongsToChat = false;
   for (const line of params.content.split("\n")) {
@@ -148,6 +155,7 @@ function parseArchiveTranscript(params: {
         type?: string;
         id?: string;
         code?: string;
+        summary?: string;
         message?: { role?: string; content?: unknown };
       };
       if (entry.type === "session" && typeof entry.id === "string") {
@@ -159,6 +167,12 @@ function parseArchiveTranscript(params: {
         /^[a-z0-9]{5}$/u.test(entry.code)
       ) {
         archiveCode = entry.code;
+      }
+      if (entry.type === "branch_summary" && typeof entry.summary === "string") {
+        titleText ??= summarizeArchiveText(entry.summary);
+      }
+      if (entry.type === "compaction" && typeof entry.summary === "string") {
+        titleText ??= summarizeArchiveText(entry.summary);
       }
       if (entry.type !== "message" || entry.message?.role !== "user") {
         continue;
@@ -173,7 +187,7 @@ function parseArchiveTranscript(params: {
         continue;
       }
       firstUserText ??= summary;
-      lastUserText = summary;
+      titleText ??= summary;
       messageCount += 1;
     } catch {
       // Ignore partial or malformed transcript lines.
@@ -194,7 +208,7 @@ function parseArchiveTranscript(params: {
     archivePath: params.filePath,
     archivedAtMs,
     firstUserText,
-    lastUserText,
+    titleText: titleText ?? firstUserText,
     messageCount,
     ...(archiveCode ? { code: archiveCode } : {}),
   };
@@ -277,7 +291,7 @@ function formatArchiveTime(archive: TelegramArchive): string {
 }
 
 function formatArchiveLine(archive: TelegramArchive): string {
-  const title = archive.lastUserText ?? archive.firstUserText ?? "(无可读用户消息)";
+  const title = archive.titleText ?? archive.firstUserText ?? "(无可读会话标题)";
   return `\`${archive.code}\`  ${formatArchiveTime(archive)}\n   ${title}`;
 }
 
