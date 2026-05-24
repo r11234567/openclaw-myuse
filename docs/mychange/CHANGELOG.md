@@ -15,6 +15,7 @@ Source behavior only. Rebuilds, deployment, nginx, certificates, and live operat
 ## Reply Rendering
 
 - LaTeX-heavy replies can be rendered as a PNG when raw text or Markdown is unreliable.
+- Gateway Control UI Markdown now renders inline and display LaTeX through KaTeX instead of showing raw delimiters.
 - The renderer probes for CJK-capable fonts and logs a concrete hint when `fontconfig` or CJK fonts are missing.
 - Mixed text/formula layout still needs careful visual review after image/runtime changes.
 - Added paired skills for mixed LaTeX/Markdown/chart export to PNG and PDF so the output format is explicit.

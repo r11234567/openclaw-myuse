@@ -16,6 +16,8 @@ import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import MarkdownIt from "markdown-it";
 import markdownItTaskLists from "markdown-it-task-lists";
+import katex from "katex";
+import texmath from "markdown-it-texmath";
 import { i18n, t } from "../i18n/index.ts";
 import { truncateText } from "./format.ts";
 import { normalizeLowercaseStringOrEmpty } from "./string-coerce.ts";
@@ -27,6 +29,8 @@ const allowedTags = [
   "br",
   "button",
   "code",
+  "eq",
+  "eqn",
   "del",
   "details",
   "div",
@@ -42,6 +46,7 @@ const allowedTags = [
   "ol",
   "p",
   "pre",
+  "section",
   "s",
   "span",
   "strong",
@@ -54,6 +59,44 @@ const allowedTags = [
   "tr",
   "ul",
   "img",
+  "annotation",
+  "annotation-xml",
+  "math",
+  "menclose",
+  "mi",
+  "mmultiscripts",
+  "mn",
+  "mo",
+  "mover",
+  "mpadded",
+  "mphantom",
+  "mrow",
+  "ms",
+  "mspace",
+  "msqrt",
+  "mstyle",
+  "msub",
+  "msubsup",
+  "msup",
+  "mtable",
+  "mtd",
+  "mtext",
+  "mtr",
+  "munder",
+  "munderover",
+  "semantics",
+  "svg",
+  "defs",
+  "g",
+  "line",
+  "path",
+  "polygon",
+  "polyline",
+  "rect",
+  "circle",
+  "symbol",
+  "use",
+  "foreignObject",
 ];
 
 const allowedAttrs = [
@@ -70,6 +113,28 @@ const allowedAttrs = [
   "data-code",
   "type",
   "aria-label",
+  "aria-hidden",
+  "aria-labelledby",
+  "aria-live",
+  "encoding",
+  "display",
+  "focusable",
+  "height",
+  "role",
+  "style",
+  "tabindex",
+  "viewBox",
+  "width",
+  "xmlns",
+  "xmlns:xlink",
+  "xlink:href",
+  "fill",
+  "stroke",
+  "stroke-width",
+  "d",
+  "x",
+  "y",
+  "preserveAspectRatio",
 ];
 const sanitizeOptions = {
   ALLOWED_TAGS: allowedTags,
@@ -254,6 +319,15 @@ export const md = new MarkdownIt({
   html: true, // Enable HTML recognition so html_block/html_inline overrides can escape it
   breaks: true,
   linkify: true,
+});
+
+md.use(texmath, {
+  engine: katex,
+  delimiters: "dollars",
+  outerSpace: true,
+  katexOptions: {
+    throwOnError: false,
+  },
 });
 
 // Enable GFM strikethrough (~~text~~) to match original marked.js behavior.

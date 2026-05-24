@@ -6,4 +6,6 @@ import "../styles/chat.css";
 import "../styles/config.css";
 import "../styles/usage.css";
 import "../styles/dreams.css";
+import "katex/dist/katex.min.css";
+import "markdown-it-texmath/css/texmath.css";
 import "@create-markdown/preview/themes/system.css";

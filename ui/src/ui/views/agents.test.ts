@@ -384,10 +384,10 @@ describe("renderAgentFiles", () => {
         agentFilesError: null,
         agentFileActive: "USER.md",
         agentFileContents: {
-          "USER.md": "# User Profile\n\nHello world",
+          "USER.md": "# User Profile\n\nHello $E=mc^2$",
         },
         agentFileDrafts: {
-          "USER.md": "# User Profile\n\nHello world",
+          "USER.md": "# User Profile\n\nHello $E=mc^2$",
         },
         agentFileSaving: false,
         onLoadFiles: () => undefined,
@@ -411,6 +411,7 @@ describe("renderAgentFiles", () => {
     expect(container.querySelector(".md-preview-dialog__eyebrow span")?.textContent?.trim()).toBe(
       "Markdown Preview",
     );
+    expect(container.querySelector(".md-preview-dialog__reader .katex")).toBeInstanceOf(Element);
   });
 
   it("renders preview header controls as icon-only buttons with accessible labels", () => {

@@ -1,11 +1,10 @@
 import { applyPreviewTheme } from "@create-markdown/preview";
-import DOMPurify from "dompurify";
 import { html, nothing } from "lit";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
-import { marked } from "marked";
 import { t } from "../../i18n/index.ts";
 import { formatRelativeTimestamp } from "../format.ts";
 import { icons } from "../icons.ts";
+import { toSanitizedMarkdownHtml } from "../markdown.ts";
 import {
   formatCronPayload,
   formatCronSchedule,
@@ -441,8 +440,8 @@ export function renderAgentFiles(params: {
   const draft = active ? (params.agentFileDrafts[active] ?? baseContent) : "";
   const isDirty = active ? draft !== baseContent : false;
   const previewHtml = activeEntry
-    ? applyPreviewTheme(marked.parse(draft, { gfm: true, breaks: true }) as string, {
-        sanitize: (h: string) => DOMPurify.sanitize(h),
+    ? applyPreviewTheme(toSanitizedMarkdownHtml(draft), {
+        sanitize: (h: string) => h,
       })
     : "";
   const draftByteSize = formatBytes(new TextEncoder().encode(draft).length);

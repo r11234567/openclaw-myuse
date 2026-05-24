@@ -253,6 +253,18 @@ describe("toSanitizedMarkdownHtml", () => {
     });
   });
 
+  describe("LaTeX math", () => {
+    it("renders inline and display math through KaTeX", () => {
+      const html = toSanitizedMarkdownHtml("Euler $E=mc^2$ identity\n\n$$\\frac{a}{b}$$");
+      const fragment = htmlFragment(html);
+
+      expect(fragment.querySelectorAll(".katex")).toHaveLength(2);
+      expect(fragment.querySelector("eq .katex-mathml math")).toBeInstanceOf(Element);
+      expect(fragment.querySelector("eqn .katex-display")).toBeInstanceOf(Element);
+      expect(fragment.textContent).toContain("Euler");
+    });
+  });
+
   describe("HTML escaping", () => {
     it("escapes HTML tags as text", () => {
       const html = toSanitizedMarkdownHtml("<div>**bold**</div>");
