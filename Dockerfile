@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # Opt-in plugin dependencies at build time (space- or comma-separated directory names).
 # Example: docker build --build-arg OPENCLAW_EXTENSIONS="diagnostics-otel,matrix" .
 #
@@ -50,21 +51,21 @@ FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS build
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
 
 # Copy pinned Bun binary from the official image instead of fetching via curl.
-COPY --from=bun-binary /usr/local/bin/bun /usr/local/bin/bun
+COPY --link --from=bun-binary /usr/local/bin/bun /usr/local/bin/bun
 
 RUN corepack enable
 
 WORKDIR /app
 
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-COPY openclaw.mjs ./
-COPY ui/package.json ./ui/package.json
-COPY patches ./patches
-COPY scripts/postinstall-bundled-plugins.mjs scripts/preinstall-package-manager-warning.mjs scripts/npm-runner.mjs scripts/windows-cmd-helpers.mjs ./scripts/
-COPY scripts/lib/package-dist-imports.mjs ./scripts/lib/package-dist-imports.mjs
+COPY --link package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+COPY --link openclaw.mjs ./
+COPY --link ui/package.json ./ui/package.json
+COPY --link patches ./patches
+COPY --link scripts/postinstall-bundled-plugins.mjs scripts/preinstall-package-manager-warning.mjs scripts/npm-runner.mjs scripts/windows-cmd-helpers.mjs ./scripts/
+COPY --link scripts/lib/package-dist-imports.mjs ./scripts/lib/package-dist-imports.mjs
 
-COPY --from=workspace-deps /out/packages/ ./packages/
-COPY --from=workspace-deps /out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/ ./${OPENCLAW_BUNDLED_PLUGIN_DIR}/
+COPY --link --from=workspace-deps /out/packages/ ./packages/
+COPY --link --from=workspace-deps /out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/ ./${OPENCLAW_BUNDLED_PLUGIN_DIR}/
 
 # Reduce OOM risk on low-memory hosts during dependency installation.
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
@@ -91,7 +92,7 @@ RUN set -eux; \
     find /app/node_modules -name "matrix-sdk-crypto*.node" 2>/dev/null | grep -q . || \
       (echo "ERROR: matrix-sdk-crypto native addon missing after retries" >&2 && exit 1)
 
-COPY . .
+COPY --link . .
 
 # Normalize extension paths now so runtime COPY preserves safe modes
 # without adding a second full extensions layer.
@@ -170,16 +171,16 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 
 RUN chown node:node /app
 
-COPY --from=runtime-assets --chown=node:node /app/dist ./dist
-COPY --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
-COPY --from=runtime-assets --chown=node:node /app/package.json .
-COPY --from=runtime-assets --chown=node:node /app/pnpm-workspace.yaml .
-COPY --from=runtime-assets --chown=node:node /app/patches ./patches
-COPY --from=runtime-assets --chown=node:node /app/openclaw.mjs .
-COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
-COPY --from=runtime-assets --chown=node:node /app/skills ./skills
-COPY --from=runtime-assets --chown=node:node /app/docs ./docs
-COPY --from=runtime-assets --chown=node:node /app/qa ./qa
+COPY --link --from=runtime-assets --chown=node:node /app/dist ./dist
+COPY --link --from=runtime-assets --chown=node:node /app/node_modules ./node_modules
+COPY --link --from=runtime-assets --chown=node:node /app/package.json .
+COPY --link --from=runtime-assets --chown=node:node /app/pnpm-workspace.yaml .
+COPY --link --from=runtime-assets --chown=node:node /app/patches ./patches
+COPY --link --from=runtime-assets --chown=node:node /app/openclaw.mjs .
+COPY --link --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}
+COPY --link --from=runtime-assets --chown=node:node /app/skills ./skills
+COPY --link --from=runtime-assets --chown=node:node /app/docs ./docs
+COPY --link --from=runtime-assets --chown=node:node /app/qa ./qa
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
@@ -216,19 +217,21 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
 ARG OPENCLAW_IMAGE_PIP_PACKAGES="nano-pdf"
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-pip-cache,target=/root/.cache/pip,sharing=locked \
     if [ -n "$OPENCLAW_IMAGE_PIP_PACKAGES" ]; then \
       if ! python3 -m pip --version >/dev/null 2>&1; then \
         apt-get update && \
         DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends python3-pip; \
       fi && \
-      python3 -m pip install --no-cache-dir --break-system-packages $OPENCLAW_IMAGE_PIP_PACKAGES; \
+      python3 -m pip install --disable-pip-version-check --break-system-packages $OPENCLAW_IMAGE_PIP_PACKAGES; \
     fi
 
 # Install additional Node CLI packages needed by requested skills.
 # Example: docker build --build-arg OPENCLAW_IMAGE_NPM_PACKAGES="clawhub mcporter" .
 ARG OPENCLAW_IMAGE_NPM_PACKAGES="clawhub mcporter"
-RUN if [ -n "$OPENCLAW_IMAGE_NPM_PACKAGES" ]; then \
-      npm install -g --omit=dev $OPENCLAW_IMAGE_NPM_PACKAGES; \
+RUN --mount=type=cache,id=openclaw-npm-cache,target=/root/.npm,sharing=locked \
+    if [ -n "$OPENCLAW_IMAGE_NPM_PACKAGES" ]; then \
+      npm install -g --omit=dev --no-audit --no-fund $OPENCLAW_IMAGE_NPM_PACKAGES; \
     fi
 
 # Optionally install Chromium and Xvfb for browser automation.

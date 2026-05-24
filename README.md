@@ -23,12 +23,14 @@ It keeps the Gateway and CLI in one Docker runtime, uses Telegram as a controlle
 4. Check the Gateway logs and health output before trusting the UI.
 5. Expose the Gateway through nginx only after authentication and proxy headers are correct.
 6. Keep the CLI available for day-to-day operator commands such as `doctor`, `models`, `devices`, `pairing`, and session inspection.
+7. Publish the private image by incrementing `build_revision` in `docs/mychange/IMAGE_BUILD_TRIGGER.md` and pushing to `main`.
 
 ## Where to look
 
 - `docs/mychange/WORKLOG.md`: high-frequency operational log. Check this first when something breaks.
 - `docs/mychange/AGENTS.md`: background, architecture, preferences, and half-finished work.
 - `docs/mychange/OPERATIONS.md`: build, run, health-check, and cleanup commands.
+- `docs/mychange/IMAGE_BUILD_TRIGGER.md`: CI image publish counter for `openclaw-myuse`.
 - `docs/mychange/CHANGELOG.md`: source-code changes only, with the reasons they happened.
 - `docs/mychange/OPENCLAW_ACCESS.md`: current access topology and entry paths.
 

@@ -31,6 +31,10 @@ Source behavior only. Rebuilds, deployment, nginx, certificates, and live operat
 - Runtime skill dependencies are installed through Dockerfile/build configuration, not ad hoc container installs.
 - `network-search` prefers SearXNG, then DuckDuckGo MCP, then Google Custom Search, with Apify reserved as a last-resort extraction fallback.
 
+## Docker Image Publishing
+
+- `openclaw-myuse` image publishing is gated by `docs/mychange/IMAGE_BUILD_TRIGGER.md`; increment `build_revision` to build from `main`.
+
 ## Decisions To Preserve
 
 - Telegram archives are chat-local.

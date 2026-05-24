@@ -24,6 +24,13 @@ docker builder prune -f
 docker system df
 ```
 
+## Image Publishing
+
+CI publishes `ghcr.io/<owner>/openclaw-myuse`.
+
+- Normal trigger: increment `build_revision` in `docs/mychange/IMAGE_BUILD_TRIGGER.md` and push to `main`.
+- Manual trigger: run `Build and Publish openclaw-myuse` with `publish=1`.
+
 ## Health
 
 ```bash
