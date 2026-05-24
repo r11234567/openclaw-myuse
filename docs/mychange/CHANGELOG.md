@@ -8,6 +8,7 @@ Source behavior only. Rebuilds, deployment, nginx, certificates, and live operat
 - `/new` preserves recoverability by archiving the current Telegram conversation.
 - Empty command-only turns are guarded so they do not create useless archives.
 - Telegram archive commands support list, switch, current-chat filtering, and delete.
+- Telegram archive list titles use archive metadata instead of stale or ambiguous labels.
 - Archive codes are short, stable 5-character identifiers.
 - Telegram archive codes are written back into the transcript so a `/use` -> `/new` round-trip keeps the same code.
 - Telegram command menu and user-facing command copy were localized toward Chinese while keeping compatibility aliases internal.
@@ -33,8 +34,10 @@ Source behavior only. Rebuilds, deployment, nginx, certificates, and live operat
 - Runtime skill dependencies are installed through Dockerfile/build configuration, not ad hoc container installs.
 - `network-search` prefers SearXNG, then DuckDuckGo MCP, then Google Custom Search, with Apify reserved as a last-resort extraction fallback.
 
-## Docker Image Publishing
+## Docker Runtime And Publishing
 
+- Runtime Docker images keep `pnpm` available through Corepack for container-local commands.
+- Docker image builds are tuned for lower-memory hosts.
 - `openclaw-myuse` image publishing is gated by `docs/mychange/IMAGE_BUILD_TRIGGER.md`; increment `build_revision` to build from `main`.
 
 ## Decisions To Preserve
