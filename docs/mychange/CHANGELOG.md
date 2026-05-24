@@ -17,6 +17,7 @@ Source behavior only. Rebuilds, deployment, nginx, certificates, and live operat
 - LaTeX-heavy replies can be rendered as a PNG when raw text or Markdown is unreliable.
 - The renderer probes for CJK-capable fonts and logs a concrete hint when `fontconfig` or CJK fonts are missing.
 - Mixed text/formula layout still needs careful visual review after image/runtime changes.
+- Added paired skills for mixed LaTeX/Markdown/chart export to PNG and PDF so the output format is explicit.
 
 ## Providers And Startup
 
