@@ -7,6 +7,7 @@ It keeps the Gateway and CLI in one Docker runtime, uses Telegram as a controlle
 
 - Runs OpenClaw in Docker.
 - Keeps the CLI available in the same runtime as the Gateway.
+- Runtime image keeps `pnpm` available via Corepack for container-local commands.
 - Supports multiple upstream providers with explicit base URL plus API key settings.
 - Uses Telegram as a locked-down operator channel.
 - Preserves conversation history with archive, switch, and delete flows.
