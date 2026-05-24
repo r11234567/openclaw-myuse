@@ -212,6 +212,66 @@ describe("handleTelegramArchivesCommand", () => {
     expect(persisted[sessionKey].sessionFile).toBe(restoredPath);
   });
 
+  it("keeps an archive code stable after switching and re-archiving the same conversation", async () => {
+    const dir = await makeTempSessionsDir();
+    const sessionKey = "agent:main:telegram:direct:111";
+    const currentPath = path.join(dir, "current.jsonl");
+    const archivedPath = path.join(dir, "old.jsonl.reset.2026-05-20T10-00-00.000Z");
+    const reboundPath = path.join(dir, "old.jsonl.reset.2026-05-20T12-00-00.000Z");
+    const restoredPath = path.join(dir, "old.jsonl");
+    await writeTranscript(currentPath, "current", "111");
+    await writeTranscript(archivedPath, "old", "111");
+    const sessionStore = {
+      [sessionKey]: {
+        sessionId: "current",
+        sessionFile: currentPath,
+        updatedAt: 1,
+        sessionStartedAt: 1,
+      },
+    };
+    await fs.writeFile(path.join(dir, "sessions.json"), `${JSON.stringify(sessionStore)}\n`);
+    const listResult = await handleTelegramArchivesCommand(
+      buildParams({
+        command: "/archives",
+        sessionsDir: dir,
+        sessionKey,
+        sessionStore,
+        sessionEntry: sessionStore[sessionKey],
+      }),
+      true,
+    );
+    const archiveCode = /`([a-z0-9]{5,})`/u.exec(listResult?.reply?.text ?? "")?.[1];
+    expect(archiveCode).toBeTruthy();
+
+    const result = await handleTelegramArchivesCommand(
+      buildParams({
+        command: `/use ${archiveCode}`,
+        sessionsDir: dir,
+        sessionKey,
+        sessionStore,
+        sessionEntry: sessionStore[sessionKey],
+      }),
+      true,
+    );
+    expect(result?.shouldContinue).toBe(false);
+    await expect(fs.access(restoredPath)).resolves.toBeUndefined();
+
+    await fs.rename(restoredPath, reboundPath);
+
+    const afterRearchive = await handleTelegramArchivesCommand(
+      buildParams({
+        command: "/archives",
+        sessionsDir: dir,
+        sessionKey,
+        sessionStore,
+        sessionEntry: sessionStore[sessionKey],
+      }),
+      true,
+    );
+    expect(afterRearchive?.reply?.text).toContain(`\`${archiveCode}\``);
+    expect(afterRearchive?.reply?.text).not.toContain("current");
+  });
+
   it("deletes the selected archive for the current Telegram chat", async () => {
     const dir = await makeTempSessionsDir();
     const targetPath = path.join(dir, "old.jsonl.reset.2026-05-20T10-00-00.000Z");

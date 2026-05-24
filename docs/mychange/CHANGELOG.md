@@ -9,6 +9,7 @@ Source behavior only. Rebuilds, deployment, nginx, certificates, and live operat
 - Empty command-only turns are guarded so they do not create useless archives.
 - Telegram archive commands support list, switch, current-chat filtering, and delete.
 - Archive codes are short, stable 5-character identifiers.
+- Telegram archive codes are written back into the transcript so a `/use` -> `/new` round-trip keeps the same code.
 - Telegram command menu and user-facing command copy were localized toward Chinese while keeping compatibility aliases internal.
 
 ## Reply Rendering

@@ -16,6 +16,7 @@ const ARCHIVE_DELETE_COMMANDS = new Set(["/delete", "/tg_delete", "/archive_dele
 const CURRENT_COMMANDS = new Set(["/current", "/tg_current", "/current_tg"]);
 const ARCHIVE_SUFFIX_RE = /\.jsonl\.reset\.(.+)$/;
 const ARCHIVE_CODE_LENGTH = 5;
+const ARCHIVE_METADATA_TYPE = "openclaw.telegram-archive";
 const PAGE_SIZE = 10;
 
 type ParsedTelegramArchive = {
@@ -25,6 +26,7 @@ type ParsedTelegramArchive = {
   firstUserText?: string;
   lastUserText?: string;
   messageCount: number;
+  code?: string;
 };
 
 type TelegramArchive = ParsedTelegramArchive & {
@@ -132,6 +134,7 @@ function parseArchiveTranscript(params: {
   chatId: string;
 }): ParsedTelegramArchive | null {
   let sessionId = path.basename(params.filePath).replace(ARCHIVE_SUFFIX_RE, "");
+  let archiveCode: string | undefined;
   let firstUserText: string | undefined;
   let lastUserText: string | undefined;
   let messageCount = 0;
@@ -144,10 +147,18 @@ function parseArchiveTranscript(params: {
       const entry = JSON.parse(line) as {
         type?: string;
         id?: string;
+        code?: string;
         message?: { role?: string; content?: unknown };
       };
       if (entry.type === "session" && typeof entry.id === "string") {
         sessionId = entry.id;
+      }
+      if (
+        entry.type === ARCHIVE_METADATA_TYPE &&
+        typeof entry.code === "string" &&
+        /^[a-z0-9]{5}$/u.test(entry.code)
+      ) {
+        archiveCode = entry.code;
       }
       if (entry.type !== "message" || entry.message?.role !== "user") {
         continue;
@@ -185,6 +196,7 @@ function parseArchiveTranscript(params: {
     firstUserText,
     lastUserText,
     messageCount,
+    ...(archiveCode ? { code: archiveCode } : {}),
   };
 }
 
@@ -199,7 +211,36 @@ function buildArchiveCode(archive: ParsedTelegramArchive): string {
 }
 
 function assignArchiveCodes(archives: ParsedTelegramArchive[]): TelegramArchive[] {
-  return archives.map((archive) => ({ ...archive, code: buildArchiveCode(archive) }));
+  return archives.map((archive) => ({ ...archive, code: archive.code ?? buildArchiveCode(archive) }));
+}
+
+function buildArchiveMetadataLine(code: string): string {
+  return `${JSON.stringify({
+    type: ARCHIVE_METADATA_TYPE,
+    code,
+  })}\n`;
+}
+
+async function ensureArchiveCodeMetadata(archive: TelegramArchive): Promise<void> {
+  const content = await fs.readFile(archive.archivePath, "utf8");
+  for (const line of content.split("\n")) {
+    if (!line.trim()) {
+      continue;
+    }
+    try {
+      const entry = JSON.parse(line) as { type?: string; code?: string };
+      if (
+        entry.type === ARCHIVE_METADATA_TYPE &&
+        typeof entry.code === "string" &&
+        entry.code === archive.code
+      ) {
+        return;
+      }
+    } catch {
+      // Ignore malformed lines while checking for existing metadata.
+    }
+  }
+  await fs.appendFile(archive.archivePath, buildArchiveMetadataLine(archive.code), "utf8");
 }
 
 async function listTelegramArchives(params: HandleCommandsParams): Promise<TelegramArchive[]> {
@@ -389,6 +430,7 @@ async function switchToArchive(
   if (!params.storePath || !params.sessionStore) {
     throw new Error("session store is unavailable");
   }
+  await ensureArchiveCodeMetadata(archive);
   const currentEntry = params.sessionStore[params.sessionKey] ?? params.sessionEntry;
   const restored = await restoreArchive({ archive, currentEntry });
   const now = Date.now();
