@@ -1,7 +1,13 @@
 services:
   openclaw-gateway:
     image: ${OPENCLAW_IMAGE:-openclaw:local}
-    build: .
+    build:
+      context: .
+      args:
+        OPENCLAW_BUILD_NODE_OPTIONS: ${OPENCLAW_BUILD_NODE_OPTIONS:---max-old-space-size=2304}
+        OPENCLAW_PNPM_CHILD_CONCURRENCY: ${OPENCLAW_PNPM_CHILD_CONCURRENCY:-1}
+        OPENCLAW_PNPM_NETWORK_CONCURRENCY: ${OPENCLAW_PNPM_NETWORK_CONCURRENCY:-4}
+        OPENCLAW_NATIVE_BUILD_JOBS: ${OPENCLAW_NATIVE_BUILD_JOBS:-1}
     env_file:
       - path: .env
         required: false

@@ -10,7 +10,10 @@
 # Build stages use full bookworm; the runtime image is always bookworm-slim.
 ARG OPENCLAW_EXTENSIONS=""
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
-ARG OPENCLAW_BUILD_NODE_OPTIONS="--max-old-space-size=2560"
+ARG OPENCLAW_BUILD_NODE_OPTIONS="--max-old-space-size=2304"
+ARG OPENCLAW_PNPM_CHILD_CONCURRENCY="1"
+ARG OPENCLAW_PNPM_NETWORK_CONCURRENCY="4"
+ARG OPENCLAW_NATIVE_BUILD_JOBS="1"
 ARG OPENCLAW_NODE_BOOKWORM_IMAGE="node:24-bookworm@sha256:3a09aa6354567619221ef6c45a5051b671f953f0a1924d1f819ffb236e520e6b"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE="node:24-bookworm-slim@sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST="sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
@@ -51,6 +54,9 @@ FROM ${OPENCLAW_BUN_IMAGE} AS bun-binary
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS build
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
 ARG OPENCLAW_BUILD_NODE_OPTIONS
+ARG OPENCLAW_PNPM_CHILD_CONCURRENCY
+ARG OPENCLAW_PNPM_NETWORK_CONCURRENCY
+ARG OPENCLAW_NATIVE_BUILD_JOBS
 
 # Copy pinned Bun binary from the official image instead of fetching via curl.
 COPY --link --from=bun-binary /usr/local/bin/bun /usr/local/bin/bun
@@ -58,6 +64,11 @@ COPY --link --from=bun-binary /usr/local/bin/bun /usr/local/bin/bun
 RUN corepack enable
 
 WORKDIR /app
+
+# VPS profile: 2.8G RAM + 5G swap. Keep Node heap and native package builds
+# conservative so build tools leave headroom for the OS, linker, and pnpm.
+ENV npm_config_jobs="${OPENCLAW_NATIVE_BUILD_JOBS}" \
+    MAKEFLAGS="-j${OPENCLAW_NATIVE_BUILD_JOBS}"
 
 COPY --link package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
 COPY --link openclaw.mjs ./
@@ -73,6 +84,8 @@ COPY --link --from=workspace-deps /out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/ ./${OPENC
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
 RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
     NODE_OPTIONS="$OPENCLAW_BUILD_NODE_OPTIONS" pnpm install --frozen-lockfile \
+      --child-concurrency="$OPENCLAW_PNPM_CHILD_CONCURRENCY" \
+      --network-concurrency="$OPENCLAW_PNPM_NETWORK_CONCURRENCY" \
       --config.supportedArchitectures.os=linux \
       --config.supportedArchitectures.cpu="$(node -p 'process.arch')" \
       --config.supportedArchitectures.libc=glibc && \
