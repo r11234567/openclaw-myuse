@@ -168,7 +168,7 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates curl ffmpeg fontconfig fonts-noto-cjk fonts-noto-color-emoji gh git hostname jq lsof openssl procps python3 ripgrep tini && \
+      ca-certificates curl ffmpeg fontconfig fonts-noto-cjk fonts-noto-color-emoji gh git ghostscript hostname imagemagick jq lsof openssl pandoc poppler-utils procps python3 qpdf ripgrep tesseract-ocr tesseract-ocr-chi-sim texlive-fonts-recommended texlive-lang-chinese texlive-latex-extra texlive-latex-recommended texlive-xetex tini && \
     update-ca-certificates
 
 RUN chown node:node /app
