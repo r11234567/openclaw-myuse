@@ -10,7 +10,7 @@
 # Build stages use full bookworm; the runtime image is always bookworm-slim.
 ARG OPENCLAW_EXTENSIONS=""
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
-ARG OPENCLAW_BUILD_NODE_OPTIONS="--max-old-space-size=4096"
+ARG OPENCLAW_BUILD_NODE_OPTIONS="--max-old-space-size=2560"
 ARG OPENCLAW_NODE_BOOKWORM_IMAGE="node:24-bookworm@sha256:3a09aa6354567619221ef6c45a5051b671f953f0a1924d1f819ffb236e520e6b"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_IMAGE="node:24-bookworm-slim@sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
 ARG OPENCLAW_NODE_BOOKWORM_SLIM_DIGEST="sha256:e8e2e91b1378f83c5b2dd15f0247f34110e2fe895f6ca7719dbb780f929368eb"
@@ -159,18 +159,6 @@ LABEL org.opencontainers.image.source="https://github.com/openclaw/openclaw" \
 
 WORKDIR /app
 
-# Install runtime system utilities missing from bookworm-slim.
-# `ca-certificates` ships in `bookworm` (full) but not in `bookworm-slim`,
-# so it must be installed explicitly here. Without it `/etc/ssl/certs/`
-# stays empty and every HTTPS outbound dies at TLS handshake with
-# `error setting certificate file`.
-RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-    apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates curl ffmpeg fontconfig fonts-noto-cjk fonts-noto-color-emoji gh git ghostscript hostname imagemagick jq lsof openssl pandoc poppler-utils procps python3 qpdf ripgrep tesseract-ocr tesseract-ocr-chi-sim texlive-fonts-recommended texlive-lang-chinese texlive-latex-extra texlive-latex-recommended texlive-xetex tini && \
-    update-ca-certificates
-
 RUN chown node:node /app
 
 COPY --from=runtime-assets --chown=node:node /app/dist ./dist
@@ -183,6 +171,19 @@ COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR}
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
 COPY --from=runtime-assets --chown=node:node /app/qa ./qa
+
+# Install runtime system utilities after runtime-assets are available so
+# low-memory local builds do not run TeX package setup in parallel with tsdown.
+# `ca-certificates` ships in `bookworm` (full) but not in `bookworm-slim`,
+# so it must be installed explicitly here. Without it `/etc/ssl/certs/`
+# stays empty and every HTTPS outbound dies at TLS handshake with
+# `error setting certificate file`.
+RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates curl ffmpeg fontconfig fonts-noto-cjk fonts-noto-color-emoji gh git ghostscript hostname imagemagick jq lsof openssl pandoc poppler-utils procps python3 qpdf ripgrep tesseract-ocr tesseract-ocr-chi-sim texlive-fonts-recommended texlive-lang-chinese texlive-latex-extra texlive-latex-recommended texlive-xetex tini && \
+    update-ca-certificates
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
