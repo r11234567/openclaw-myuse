@@ -11,6 +11,11 @@
 ARG OPENCLAW_EXTENSIONS=""
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR=extensions
 ARG OPENCLAW_BUILD_NODE_OPTIONS="--max-old-space-size=2304"
+# Heavy bundling steps (build:docker, ui:build, qa:lab:build) need a much larger
+# V8 heap than dependency install. Upstream uses 8192 here; on this 2.8G-RAM VPS
+# the extra heap is backed by the 5G swapfile. Keep separate from the install
+# heap so install stays lean and only these steps lean on swap.
+ARG OPENCLAW_BUILD_HEAVY_NODE_OPTIONS="--max-old-space-size=8192"
 ARG OPENCLAW_PNPM_CHILD_CONCURRENCY="1"
 ARG OPENCLAW_PNPM_NETWORK_CONCURRENCY="4"
 ARG OPENCLAW_NATIVE_BUILD_JOBS="1"
@@ -54,6 +59,7 @@ FROM ${OPENCLAW_BUN_IMAGE} AS bun-binary
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS build
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
 ARG OPENCLAW_BUILD_NODE_OPTIONS
+ARG OPENCLAW_BUILD_HEAVY_NODE_OPTIONS
 ARG OPENCLAW_PNPM_CHILD_CONCURRENCY
 ARG OPENCLAW_PNPM_NETWORK_CONCURRENCY
 ARG OPENCLAW_NATIVE_BUILD_JOBS
@@ -127,11 +133,11 @@ RUN pnpm_config_verify_deps_before_run=false pnpm canvas:a2ui:bundle || \
      echo "/* A2UI bundle unavailable in this build */" > extensions/canvas/src/host/a2ui/a2ui.bundle.js && \
      echo "stub" > extensions/canvas/src/host/a2ui/.bundle.hash && \
      rm -rf vendor/a2ui apps/shared/OpenClawKit/Tools/CanvasA2UI)
-RUN NODE_OPTIONS="$OPENCLAW_BUILD_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm build:docker
+RUN NODE_OPTIONS="$OPENCLAW_BUILD_HEAVY_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm build:docker
 # Force pnpm for UI build (Bun may fail on ARM/Synology architectures)
 ENV OPENCLAW_PREFER_PNPM=1
-RUN NODE_OPTIONS="$OPENCLAW_BUILD_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm ui:build
-RUN NODE_OPTIONS="$OPENCLAW_BUILD_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm qa:lab:build
+RUN NODE_OPTIONS="$OPENCLAW_BUILD_HEAVY_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm ui:build
+RUN NODE_OPTIONS="$OPENCLAW_BUILD_HEAVY_NODE_OPTIONS" pnpm_config_verify_deps_before_run=false pnpm qa:lab:build
 
 # Prune dev dependencies and strip build-only metadata before copying
 # runtime assets into the final image.
