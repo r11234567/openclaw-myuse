@@ -14,7 +14,6 @@ type AgentsBindModule = typeof import("../../commands/agents.commands.bind.js");
 type AgentsDeleteModule = typeof import("../../commands/agents.commands.delete.js");
 type AgentsIdentityModule = typeof import("../../commands/agents.commands.identity.js");
 type AgentsListModule = typeof import("../../commands/agents.commands.list.js");
-type CliDepsModule = typeof import("../deps.js");
 type GlobalStateModule = typeof import("../../global-state.js");
 
 async function loadAgentCliCommand(): Promise<AgentViaGatewayModule["agentCliCommand"]> {
@@ -51,10 +50,6 @@ async function loadAgentsListCommand(): Promise<AgentsListModule["agentsListComm
   return (await import("../../commands/agents.commands.list.js")).agentsListCommand;
 }
 
-async function loadCreateDefaultDeps(): Promise<CliDepsModule["createDefaultDeps"]> {
-  return (await import("../deps.js")).createDefaultDeps;
-}
-
 async function loadSetVerbose(): Promise<GlobalStateModule["setVerbose"]> {
   return (await import("../../global-state.js")).setVerbose;
 }
@@ -68,6 +63,7 @@ export function registerAgentCommands(
     .description("Run an agent turn via the Gateway (use --local for embedded)")
     .requiredOption("-m, --message <text>", "Message body for the agent")
     .option("-t, --to <number>", "Recipient number in E.164 used to derive the session key")
+    .option("--session-key <key>", "Explicit session key (agent:<id>:<key>, or scoped to --agent)")
     .option("--session-id <id>", "Use an explicit session id")
     .option("--agent <id>", "Agent id (overrides routing bindings)")
     .option("--model <id>", "Model override for this run (provider/model or model id)")
@@ -103,6 +99,10 @@ ${formatHelpExamples([
   ['openclaw agent --to +15555550123 --message "status update"', "Start a new session."],
   ['openclaw agent --agent ops --message "Summarize logs"', "Use a specific agent."],
   [
+    'openclaw agent --session-key agent:ops:incident-42 --message "Summarize status"',
+    "Target an exact session key.",
+  ],
+  [
     'openclaw agent --session-id 1234 --message "Summarize inbox" --thinking medium',
     "Target a session with explicit thinking level.",
   ],
@@ -125,11 +125,8 @@ ${theme.muted("Docs:")} ${formatDocsLink("/cli/agent", "docs.openclaw.ai/cli/age
       await runCommandWithRuntime(defaultRuntime, async () => {
         const setVerbose = await loadSetVerbose();
         setVerbose(verboseLevel === "on");
-        // Build default deps (keeps parity with other commands; future-proofing).
-        const createDefaultDeps = await loadCreateDefaultDeps();
-        const deps = createDefaultDeps();
         const agentCliCommand = await loadAgentCliCommand();
-        await agentCliCommand(opts, defaultRuntime, deps);
+        await agentCliCommand(opts, defaultRuntime);
       });
     });
 

@@ -16,8 +16,7 @@ import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import MarkdownIt from "markdown-it";
 import markdownItTaskLists from "markdown-it-task-lists";
-import katex from "katex";
-import texmath from "markdown-it-texmath";
+import { stripUnsupportedCitationControlMarkers } from "../../../src/shared/text/citation-control-markers.js";
 import { i18n, t } from "../i18n/index.ts";
 import { truncateText } from "./format.ts";
 import { normalizeLowercaseStringOrEmpty } from "./string-coerce.ts";
@@ -29,8 +28,6 @@ const allowedTags = [
   "br",
   "button",
   "code",
-  "eq",
-  "eqn",
   "del",
   "details",
   "div",
@@ -46,7 +43,6 @@ const allowedTags = [
   "ol",
   "p",
   "pre",
-  "section",
   "s",
   "span",
   "strong",
@@ -59,44 +55,6 @@ const allowedTags = [
   "tr",
   "ul",
   "img",
-  "annotation",
-  "annotation-xml",
-  "math",
-  "menclose",
-  "mi",
-  "mmultiscripts",
-  "mn",
-  "mo",
-  "mover",
-  "mpadded",
-  "mphantom",
-  "mrow",
-  "ms",
-  "mspace",
-  "msqrt",
-  "mstyle",
-  "msub",
-  "msubsup",
-  "msup",
-  "mtable",
-  "mtd",
-  "mtext",
-  "mtr",
-  "munder",
-  "munderover",
-  "semantics",
-  "svg",
-  "defs",
-  "g",
-  "line",
-  "path",
-  "polygon",
-  "polyline",
-  "rect",
-  "circle",
-  "symbol",
-  "use",
-  "foreignObject",
 ];
 
 const allowedAttrs = [
@@ -113,28 +71,6 @@ const allowedAttrs = [
   "data-code",
   "type",
   "aria-label",
-  "aria-hidden",
-  "aria-labelledby",
-  "aria-live",
-  "encoding",
-  "display",
-  "focusable",
-  "height",
-  "role",
-  "style",
-  "tabindex",
-  "viewBox",
-  "width",
-  "xmlns",
-  "xmlns:xlink",
-  "xlink:href",
-  "fill",
-  "stroke",
-  "stroke-width",
-  "d",
-  "x",
-  "y",
-  "preserveAspectRatio",
 ];
 const sanitizeOptions = {
   ALLOWED_TAGS: allowedTags,
@@ -148,8 +84,20 @@ const MARKDOWN_PARSE_LIMIT = 40_000;
 const MARKDOWN_CACHE_LIMIT = 200;
 const MARKDOWN_CACHE_MAX_CHARS = 50_000;
 const INLINE_DATA_IMAGE_RE = /^data:image\/[a-z0-9.+-]+;base64,/i;
+const HOST_LOCAL_FILE_HREF_RE =
+  /^(?:~\/|\/(?:Users|home|tmp|private\/tmp|var\/folders|private\/var\/folders)\/|\/[A-Za-z]:\/|[A-Za-z]:[\\/])/;
 const markdownCache = new Map<string, string>();
 const TAIL_LINK_BLUR_CLASS = "chat-link-tail-blur";
+
+export type MarkdownCodeBlockChrome = "copy" | "none";
+
+export type MarkdownRenderOptions = {
+  codeBlockChrome?: MarkdownCodeBlockChrome;
+};
+
+type MarkdownRenderEnv = {
+  codeBlockChrome: MarkdownCodeBlockChrome;
+};
 
 // CJK character ranges for URL boundary detection (RFC 3986: CJK is not valid in raw URLs).
 // CJK Unified Ideographs, CJK Symbols/Punctuation, Fullwidth Forms, Hiragana, Katakana,
@@ -179,6 +127,20 @@ function setCachedMarkdown(key: string, value: string) {
   }
 }
 
+function normalizeMarkdownRenderOptions(options: MarkdownRenderOptions = {}): MarkdownRenderEnv {
+  return {
+    codeBlockChrome: options.codeBlockChrome ?? "copy",
+  };
+}
+
+function shouldRenderCodeBlockCopy(env: unknown): boolean {
+  return (env as Partial<MarkdownRenderEnv> | undefined)?.codeBlockChrome !== "none";
+}
+
+function isHostLocalFileHref(href: string): boolean {
+  return HOST_LOCAL_FILE_HREF_RE.test(href.trim());
+}
+
 function installHooks() {
   if (hooksInstalled) {
     return;
@@ -191,6 +153,11 @@ function installHooks() {
     }
     const href = node.getAttribute("href");
     if (!href) {
+      return;
+    }
+
+    if (isHostLocalFileHref(href)) {
+      node.removeAttribute("href");
       return;
     }
 
@@ -319,15 +286,6 @@ export const md = new MarkdownIt({
   html: true, // Enable HTML recognition so html_block/html_inline overrides can escape it
   breaks: true,
   linkify: true,
-});
-
-md.use(texmath, {
-  engine: katex,
-  delimiters: "dollars",
-  outerSpace: true,
-  katexOptions: {
-    throwOnError: false,
-  },
 });
 
 // Enable GFM strikethrough (~~text~~) to match original marked.js behavior.
@@ -594,7 +552,7 @@ md.renderer.rules.image = (tokens, idx) => {
 };
 
 // Override fenced code blocks with copy button + JSON collapse
-md.renderer.rules.fence = (tokens, idx) => {
+md.renderer.rules.fence = (tokens, idx, _options, env) => {
   const token = tokens[idx];
   // token.info contains the full fence info string (e.g., "json title=foo");
   // extract only the first whitespace-separated token as the language.
@@ -603,6 +561,9 @@ md.renderer.rules.fence = (tokens, idx) => {
   const highlighted = highlightCode(text, lang);
   const classAttr = codeClassAttribute(lang, highlighted);
   const codeBlock = `<pre><code${classAttr}>${highlighted}</code></pre>`;
+  if (!shouldRenderCodeBlockCopy(env)) {
+    return codeBlock;
+  }
   const langLabel = lang ? `<span class="code-block-lang">${escapeHtml(lang)}</span>` : "";
   const attrSafe = escapeHtml(text);
   const copyBtn = `<button type="button" class="code-block-copy" data-code="${attrSafe}" aria-label="${escapeHtml(t("common.copyCode"))}"><span class="code-block-copy__idle">${escapeHtml(t("common.copy"))}</span><span class="code-block-copy__done">${escapeHtml(t("common.copied"))}</span></button>`;
@@ -625,12 +586,15 @@ md.renderer.rules.fence = (tokens, idx) => {
 };
 
 // Override indented code blocks (code_block) with the same treatment as fence
-md.renderer.rules.code_block = (tokens, idx) => {
+md.renderer.rules.code_block = (tokens, idx, _options, env) => {
   const token = tokens[idx];
   const text = token.content;
   const highlighted = highlightCode(text, "");
   const classAttr = codeClassAttribute("", highlighted);
   const codeBlock = `<pre><code${classAttr}>${highlighted}</code></pre>`;
+  if (!shouldRenderCodeBlockCopy(env)) {
+    return codeBlock;
+  }
   const attrSafe = escapeHtml(text);
   const copyBtn = `<button type="button" class="code-block-copy" data-code="${attrSafe}" aria-label="${escapeHtml(t("common.copyCode"))}"><span class="code-block-copy__idle">${escapeHtml(t("common.copy"))}</span><span class="code-block-copy__done">${escapeHtml(t("common.copied"))}</span></button>`;
   const header = `<div class="code-block-header">${copyBtn}</div>`;
@@ -649,13 +613,17 @@ md.renderer.rules.code_block = (tokens, idx) => {
   return `<div class="code-block-wrapper">${header}${codeBlock}</div>`;
 };
 
-export function toSanitizedMarkdownHtml(markdown: string): string {
-  const input = markdown.trim();
+export function toSanitizedMarkdownHtml(
+  markdown: string,
+  options: MarkdownRenderOptions = {},
+): string {
+  const renderOptions = normalizeMarkdownRenderOptions(options);
+  const input = stripUnsupportedCitationControlMarkers(markdown).trim();
   if (!input) {
     return "";
   }
   installHooks();
-  const cacheKey = `${i18n.getLocale()}\0${input}`;
+  const cacheKey = `${i18n.getLocale()}\0${renderOptions.codeBlockChrome}\0${input}`;
   if (input.length <= MARKDOWN_CACHE_MAX_CHARS) {
     const cached = getCachedMarkdown(cacheKey);
     if (cached !== null) {
@@ -679,7 +647,7 @@ export function toSanitizedMarkdownHtml(markdown: string): string {
   }
   let rendered: string;
   try {
-    rendered = md.render(`${truncated.text}${suffix}`);
+    rendered = md.render(`${truncated.text}${suffix}`, renderOptions);
   } catch (err) {
     // Fall back to escaped plain text when md.render() throws (#36213).
     console.warn("[markdown] md.render failed, falling back to plain text:", err);

@@ -4,6 +4,14 @@ import { evaluateEntryRequirementsForCurrentPlatform } from "../shared/entry-sta
 import type { RequirementConfigCheck, Requirements } from "../shared/requirements.js";
 import { CONFIG_DIR } from "../utils.js";
 import {
+  readClawHubSkillsLockfileStatusSync,
+  resolveClawHubSkillStatusLinkSync,
+  resolveLocalSkillCardStatusSync,
+  type ClawHubSkillStatusLink,
+  type ClawHubSkillsLockfileStatusRead,
+  type LocalSkillCardStatus,
+} from "./skills-clawhub.js";
+import {
   hasBinary,
   isBundledSkillAllowed,
   isConfigPathTruthy,
@@ -52,6 +60,8 @@ export type SkillStatusEntry = {
   missing: Requirements;
   configChecks: SkillStatusConfigCheck[];
   install: SkillInstallOption[];
+  clawhub?: ClawHubSkillStatusLink;
+  skillCard?: LocalSkillCardStatus;
 };
 
 export type SkillStatusReport = {
@@ -211,6 +221,8 @@ function buildSkillStatus(
   eligibility?: SkillEligibilityContext,
   bundledNames?: Set<string>,
   agentSkillFilter?: string[],
+  workspaceDir?: string,
+  clawhubLockRead?: ClawHubSkillsLockfileStatusRead,
 ): SkillStatusEntry {
   const skillKey = resolveSkillKey(entry);
   const skillConfig = resolveSkillConfig(config, skillKey);
@@ -245,6 +257,17 @@ function buildSkillStatus(
   const availableToAgent = eligible && !blockedByAgentFilter;
   const userInvocable = isSkillUserInvocable(entry);
 
+  const clawhub =
+    workspaceDir && !bundled
+      ? resolveClawHubSkillStatusLinkSync({
+          workspaceDir,
+          skillDir: entry.skill.baseDir,
+          skillKey,
+          lockRead: clawhubLockRead,
+        })
+      : undefined;
+  const skillCard = resolveLocalSkillCardStatusSync(entry.skill.baseDir);
+
   return {
     name: entry.skill.name,
     description: entry.skill.description,
@@ -268,6 +291,8 @@ function buildSkillStatus(
     missing,
     configChecks,
     install: normalizeInstallOptions(entry, prefs ?? resolveSkillsInstallPreferences(config)),
+    ...(clawhub ? { clawhub } : {}),
+    ...(skillCard ? { skillCard } : {}),
   };
 }
 
@@ -294,6 +319,7 @@ export function buildWorkspaceSkillStatus(
       bundledSkillsDir: bundledContext.dir,
     });
   const prefs = resolveSkillsInstallPreferences(opts?.config);
+  const clawhubLockRead = readClawHubSkillsLockfileStatusSync(workspaceDir);
   return {
     workspaceDir,
     managedSkillsDir,
@@ -307,6 +333,8 @@ export function buildWorkspaceSkillStatus(
         opts?.eligibility,
         bundledContext.names,
         agentSkillFilter,
+        workspaceDir,
+        clawhubLockRead,
       ),
     ),
   };

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { OAuthCredentials } from "@earendil-works/pi-ai";
+import { parseStrictPositiveInteger } from "openclaw/plugin-sdk/number-runtime";
 import { generatePkceVerifierChallenge, toFormUrlEncoded } from "openclaw/plugin-sdk/provider-auth";
 import {
   parseOAuthCallbackInput,
@@ -14,6 +14,13 @@ const CHUTES_USERINFO_ENDPOINT = "https://api.chutes.ai/idp/userinfo";
 type OAuthPrompt = {
   message: string;
   placeholder?: string;
+};
+
+type OAuthCredentials = {
+  refresh: string;
+  access: string;
+  expires: number;
+  [key: string]: unknown;
 };
 
 type ChutesOAuthAppConfig = {
@@ -91,9 +98,17 @@ function buildAuthorizeUrl(params: {
   return `${CHUTES_AUTHORIZE_ENDPOINT}?${qs.toString()}`;
 }
 
-function coerceExpiresAt(expiresInSeconds: number, now: number): number {
-  const value = now + Math.max(0, Math.floor(expiresInSeconds)) * 1000 - 5 * 60 * 1000;
-  return Math.max(value, now + 30_000);
+function resolveChutesExpiresAt(value: unknown, now: number): number | undefined {
+  const expiresInSeconds = parseStrictPositiveInteger(value);
+  if (expiresInSeconds === undefined) {
+    return undefined;
+  }
+  const lifetimeMs = expiresInSeconds * 1000;
+  const expiresAt = now + lifetimeMs - 5 * 60 * 1000;
+  if (!Number.isSafeInteger(lifetimeMs) || !Number.isSafeInteger(expiresAt)) {
+    return undefined;
+  }
+  return Math.max(expiresAt, now + 30_000);
 }
 
 async function fetchChutesUserInfo(params: {
@@ -149,18 +164,22 @@ async function exchangeChutesCodeForTokens(params: {
   };
   const access = normalizeOptionalString(data.access_token);
   const refresh = normalizeOptionalString(data.refresh_token);
+  const expires = resolveChutesExpiresAt(data.expires_in, now);
   if (!access) {
     throw new Error("Chutes token exchange returned no access_token");
   }
   if (!refresh) {
     throw new Error("Chutes token exchange returned no refresh_token");
   }
+  if (expires === undefined) {
+    throw new Error("Chutes token exchange returned invalid expires_in");
+  }
 
   const info = await fetchChutesUserInfo({ accessToken: access, fetchFn });
   return {
     access,
     refresh,
-    expires: coerceExpiresAt(data.expires_in ?? 0, now),
+    expires,
     email: info?.username,
     accountId: info?.sub,
     clientId: params.app.clientId,

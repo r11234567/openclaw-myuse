@@ -15,9 +15,8 @@ import { isPassThroughRemoteMediaSource } from "../../media/media-source-url.js"
 import { resolveOutboundAttachmentFromUrl } from "../../media/outbound-attachment.js";
 import { resolveAgentScopedOutboundMediaAccess } from "../../media/read-capability.js";
 import { MEDIA_MAX_BYTES } from "../../media/store.js";
-import { appendReplyMediaFailureWarning } from "../reply-payload.js";
+import { appendReplyMediaFailureWarning, copyReplyPayloadMetadata } from "../reply-payload.js";
 import type { ReplyPayload } from "../types.js";
-import { renderLatexReplyPayloadToImageIfNeeded } from "./latex-reply-image.js";
 
 const FILE_URL_RE = /^file:\/\//i;
 const WINDOWS_DRIVE_RE = /^[a-zA-Z]:[\\/]/;
@@ -145,6 +144,17 @@ export function createReplyMediaPathNormalizer(params: {
     return resolvePathFromInput(relativeWorkspacePath, params.workspaceDir);
   };
 
+  const resolveAbsoluteWorkspaceMedia = (media: string): string | undefined => {
+    if (FILE_URL_RE.test(media) || (!path.isAbsolute(media) && !WINDOWS_DRIVE_RE.test(media))) {
+      return undefined;
+    }
+    try {
+      return resolveWorkspaceRelativeMedia(media);
+    } catch {
+      return undefined;
+    }
+  };
+
   const normalizeMediaSource = async (raw: string): Promise<string> => {
     const media = raw.trim();
     if (!media) {
@@ -153,6 +163,10 @@ export function createReplyMediaPathNormalizer(params: {
     assertMediaNotDataUrl(media);
     if (isPassThroughRemoteMediaSource(media)) {
       return media;
+    }
+    const absoluteWorkspaceMedia = resolveAbsoluteWorkspaceMedia(media);
+    if (absoluteWorkspaceMedia) {
+      return await persistLocalReplyMedia(absoluteWorkspaceMedia);
     }
     const isRelativeLocalMedia =
       isLikelyLocalMediaSource(media) &&
@@ -194,10 +208,9 @@ export function createReplyMediaPathNormalizer(params: {
   };
 
   return async (payload) => {
-    const renderedPayload = await renderLatexReplyPayloadToImageIfNeeded(payload);
-    const mediaList = getPayloadMediaList(renderedPayload);
+    const mediaList = getPayloadMediaList(payload);
     if (mediaList.length === 0) {
-      return renderedPayload;
+      return payload;
     }
 
     const normalizedMedia: string[] = [];
@@ -221,24 +234,24 @@ export function createReplyMediaPathNormalizer(params: {
 
     const text =
       firstMediaDropError === undefined
-        ? renderedPayload.text
-        : appendReplyMediaFailureWarning(renderedPayload.text);
+        ? payload.text
+        : appendReplyMediaFailureWarning(payload.text);
 
     if (normalizedMedia.length === 0) {
-      return {
-        ...renderedPayload,
+      return copyReplyPayloadMetadata(payload, {
+        ...payload,
         text,
         mediaUrl: undefined,
         mediaUrls: undefined,
-      };
+      });
     }
 
-    return {
-      ...renderedPayload,
+    return copyReplyPayloadMetadata(payload, {
+      ...payload,
       text,
       mediaUrl: normalizedMedia[0],
       mediaUrls: normalizedMedia,
-    };
+    });
   };
 }
 
