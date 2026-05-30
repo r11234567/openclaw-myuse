@@ -3,9 +3,12 @@
  */
 
 import {
-  parseStrictNonNegativeInteger,
-  parseStrictPositiveInteger,
+  nonNegativeSecondsToSafeMilliseconds,
+  positiveSecondsToSafeMilliseconds,
+  resolveExpiresAtMsFromDurationSeconds,
+  resolveExpiresAtMsFromEpochSeconds,
 } from "../../../infra/parse-finite-number.js";
+import { resolveTimerTimeoutMs } from "../../../shared/number-coercion.js";
 import type { Model } from "../../types.js";
 import type { OAuthCredentials, OAuthLoginCallbacks, OAuthProviderInterface } from "./types.js";
 
@@ -60,40 +63,12 @@ type CopilotRequestOptions = {
   timeoutMs?: number;
 };
 
-function secondsToSafeMilliseconds(value: unknown): number | undefined {
-  const seconds = parseStrictPositiveInteger(value);
-  if (seconds === undefined) {
-    return undefined;
-  }
-  const milliseconds = seconds * 1000;
-  return Number.isSafeInteger(milliseconds) ? milliseconds : undefined;
-}
-
-function nonNegativeSecondsToSafeMilliseconds(value: unknown): number | undefined {
-  const seconds = parseStrictNonNegativeInteger(value);
-  if (seconds === undefined) {
-    return undefined;
-  }
-  const milliseconds = seconds * 1000;
-  return Number.isSafeInteger(milliseconds) ? milliseconds : undefined;
-}
-
 function resolveExpiresAtFromDurationSeconds(value: unknown): number | undefined {
-  const durationMs = secondsToSafeMilliseconds(value);
-  if (durationMs === undefined) {
-    return undefined;
-  }
-  const expiresAt = Date.now() + durationMs;
-  return Number.isSafeInteger(expiresAt) ? expiresAt : undefined;
+  return resolveExpiresAtMsFromDurationSeconds(value);
 }
 
 function resolveExpiresAtFromEpochSeconds(value: unknown): number | undefined {
-  const epochMs = secondsToSafeMilliseconds(value);
-  if (epochMs === undefined) {
-    return undefined;
-  }
-  const expiresAt = epochMs - 5 * 60 * 1000;
-  return Number.isSafeInteger(expiresAt) ? expiresAt : undefined;
+  return resolveExpiresAtMsFromEpochSeconds(value, { bufferMs: 5 * 60 * 1000 });
 }
 
 export function normalizeDomain(input: string): string | null {
@@ -171,7 +146,9 @@ function formatCopilotRequestError(
 }
 
 function buildCopilotRequestSignal(options: CopilotRequestOptions): AbortSignal {
-  const timeoutSignal = AbortSignal.timeout(options.timeoutMs ?? COPILOT_REQUEST_TIMEOUT_MS);
+  const timeoutSignal = AbortSignal.timeout(
+    resolveTimerTimeoutMs(options.timeoutMs, COPILOT_REQUEST_TIMEOUT_MS),
+  );
   if (!options.signal) {
     return timeoutSignal;
   }
@@ -184,7 +161,7 @@ async function fetchResponse(
   operation: string,
   options: CopilotRequestOptions = {},
 ): Promise<Response> {
-  const timeoutMs = options.timeoutMs ?? COPILOT_REQUEST_TIMEOUT_MS;
+  const timeoutMs = resolveTimerTimeoutMs(options.timeoutMs, COPILOT_REQUEST_TIMEOUT_MS);
   try {
     return await fetch(url, {
       ...init,
@@ -350,7 +327,7 @@ async function pollForGitHubAccessToken(
 
       if (error === "slow_down") {
         slowDownResponses += 1;
-        const slowDownIntervalMs = secondsToSafeMilliseconds(interval);
+        const slowDownIntervalMs = positiveSecondsToSafeMilliseconds(interval);
         pollingIntervalMs =
           slowDownIntervalMs === undefined
             ? Math.max(1000, pollingIntervalMs + 5000)
