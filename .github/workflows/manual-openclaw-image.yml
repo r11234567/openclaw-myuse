@@ -14,15 +14,27 @@ on:
       extensions:
         description: "Comma-separated bundled extensions"
         required: true
-        default: "telegram,searxng,google-pse"
+        default: "telegram,searxng,google-pse,browser,canvas"
       apt_packages:
         description: "Extra apt packages for the runtime image"
         required: false
-        default: ""
+        default: "bzip2 ffmpeg jq ripgrep python3-pip tesseract-ocr poppler-utils golang-go"
       pip_packages:
         description: "Extra Python packages for the runtime image"
         required: false
-        default: ""
+        default: "--index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple torch==2.9.1+cpu openai-whisper nano-pdf"
+      npm_packages:
+        description: "Extra npm packages to install globally in the runtime image"
+        required: false
+        default: "@steipete/oracle @steipete/summarize mcporter"
+      go_packages:
+        description: "Extra Go packages to install into /usr/local/bin"
+        required: false
+        default: "github.com/steipete/gifgrep/cmd/gifgrep@latest github.com/steipete/songsee/cmd/songsee@latest"
+      install_sherpa_onnx_tts:
+        description: "Download sherpa-onnx TTS runtime and default voice model"
+        required: false
+        default: "1"
 
 permissions:
   contents: read
@@ -59,5 +71,8 @@ jobs:
             OPENCLAW_EXTENSIONS=${{ inputs.extensions }}
             OPENCLAW_IMAGE_APT_PACKAGES=${{ inputs.apt_packages }}
             OPENCLAW_IMAGE_PIP_PACKAGES=${{ inputs.pip_packages }}
+            OPENCLAW_IMAGE_NPM_PACKAGES=${{ inputs.npm_packages }}
+            OPENCLAW_IMAGE_GO_PACKAGES=${{ inputs.go_packages }}
+            OPENCLAW_INSTALL_SHERPA_ONNX_TTS=${{ inputs.install_sherpa_onnx_tts }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
