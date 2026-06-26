@@ -127,6 +127,7 @@ In Telegram groups and forum topics, an explicit mention of the configured bot h
     `dmPolicy: "open"` with `allowFrom: ["*"]` lets any Telegram account that finds or guesses the bot username command the bot. Use it only for intentionally public bots with tightly restricted tools; one-owner bots should use `allowlist` with numeric user IDs.
 
     `channels.telegram.allowFrom` accepts numeric Telegram user IDs. `telegram:` / `tg:` prefixes are accepted and normalized.
+    `channels.telegram.allowFromEnv` accepts environment variable names whose values contain numeric Telegram user IDs separated by commas or whitespace; the resolved IDs are merged into `allowFrom` at runtime.
     In multi-account configs, a restrictive top-level `channels.telegram.allowFrom` is treated as a safety boundary: account-level `allowFrom: ["*"]` entries do not make that account public unless the effective account allowlist still contains an explicit wildcard after merging.
     `dmPolicy: "allowlist"` with empty `allowFrom` blocks all DMs and is rejected by config validation.
     Setup asks for numeric user IDs only.

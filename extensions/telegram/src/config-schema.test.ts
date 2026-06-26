@@ -31,6 +31,18 @@ describe("telegram custom commands schema", () => {
     }
   });
 
+  it('accepts dmPolicy="allowlist" with allowFromEnv', () => {
+    const res = TelegramConfigSchema.safeParse({
+      dmPolicy: "allowlist",
+      allowFromEnv: ["OPENCLAW_TELEGRAM_ALLOW_FROM"],
+    });
+
+    expect(res.success).toBe(true);
+    if (res.success) {
+      expect(res.data.allowFromEnv).toEqual(["OPENCLAW_TELEGRAM_ALLOW_FROM"]);
+    }
+  });
+
   it("defaults dm/group policy", () => {
     const res = TelegramConfigSchema.safeParse({});
 

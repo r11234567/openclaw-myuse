@@ -271,6 +271,7 @@ export const TelegramAccountSchemaBase = z
     replyToMode: ReplyToModeSchema.optional(),
     groups: z.record(z.string(), TelegramGroupSchema.optional()).optional(),
     allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
+    allowFromEnv: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/)).optional(),
     defaultTo: z.union([z.string(), z.number()]).optional(),
     groupAllowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     groupPolicy: GroupPolicySchema.optional().default("allowlist"),
@@ -408,7 +409,7 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
 }).superRefine((value, ctx) => {
   requireOpenAllowFrom({
     policy: value.dmPolicy,
-    allowFrom: value.allowFrom,
+    allowFrom: value.allowFrom ?? value.allowFromEnv,
     ctx,
     path: ["allowFrom"],
     message:
@@ -416,11 +417,11 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
   });
   requireAllowlistAllowFrom({
     policy: value.dmPolicy,
-    allowFrom: value.allowFrom,
+    allowFrom: value.allowFrom ?? value.allowFromEnv,
     ctx,
     path: ["allowFrom"],
     message:
-      'channels.telegram.dmPolicy="allowlist" requires channels.telegram.allowFrom to contain at least one sender ID',
+      'channels.telegram.dmPolicy="allowlist" requires channels.telegram.allowFrom or channels.telegram.allowFromEnv to contain at least one sender ID source',
   });
   validateTelegramCustomCommands(value, ctx);
 
@@ -430,7 +431,8 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
         continue;
       }
       const effectivePolicy = account.dmPolicy ?? value.dmPolicy;
-      const effectiveAllowFrom = account.allowFrom ?? value.allowFrom;
+      const effectiveAllowFrom =
+        account.allowFrom ?? account.allowFromEnv ?? value.allowFrom ?? value.allowFromEnv;
       requireOpenAllowFrom({
         policy: effectivePolicy,
         allowFrom: effectiveAllowFrom,
@@ -464,7 +466,7 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
     const effectiveDmPolicy = account.dmPolicy ?? value.dmPolicy;
     const effectiveAllowFrom = Array.isArray(account.allowFrom)
       ? account.allowFrom
-      : value.allowFrom;
+      : account.allowFromEnv ?? value.allowFrom ?? value.allowFromEnv;
     requireOpenAllowFrom({
       policy: effectiveDmPolicy,
       allowFrom: effectiveAllowFrom,

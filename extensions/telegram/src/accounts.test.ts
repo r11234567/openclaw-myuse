@@ -94,6 +94,23 @@ describe("resolveTelegramAccount", () => {
     expect(account.tokenSource).toBe("config");
   });
 
+  it("merges allowFrom values from configured environment variables", () => {
+    const account = resolveAccountWithEnv(
+      { OPENCLAW_TELEGRAM_ALLOW_FROM: "12345, 67890" },
+      {
+        channels: {
+          telegram: {
+            botToken: "tok-config",
+            allowFrom: ["11111"],
+            allowFromEnv: ["OPENCLAW_TELEGRAM_ALLOW_FROM"],
+          },
+        },
+      },
+    );
+
+    expect(account.config.allowFrom).toEqual(["11111", "12345", "67890"]);
+  });
+
   it("does not fall back when accountId is explicitly provided", () => {
     const account = resolveAccountWithEnv(
       { TELEGRAM_BOT_TOKEN: "" },

@@ -150,6 +150,10 @@ export function resolveTelegramAccount(params: {
 
   const resolve = (accountId: string) => {
     const merged = mergeTelegramAccountConfig(params.cfg, accountId);
+    const envAllowFrom = resolveTelegramAllowFromEnv(merged);
+    const config = envAllowFrom.length
+      ? { ...merged, allowFrom: [...(merged.allowFrom ?? []), ...envAllowFrom] }
+      : merged;
     const accountEnabled = merged.enabled !== false;
     const enabled = baseEnabled && accountEnabled;
     const tokenResolution = resolveTelegramToken(params.cfg, { accountId });
@@ -164,7 +168,7 @@ export function resolveTelegramAccount(params: {
       name: normalizeOptionalString(merged.name),
       token: tokenResolution.token,
       tokenSource: tokenResolution.source,
-      config: merged,
+      config,
     } satisfies ResolvedTelegramAccount;
   };
 
@@ -178,6 +182,24 @@ export function resolveTelegramAccount(params: {
     hasCredential: (account) => account.tokenSource !== "none",
     resolveDefaultAccountId: () => resolveDefaultTelegramAccountId(params.cfg),
   });
+}
+
+function resolveTelegramAllowFromEnv(config: TelegramAccountConfig): Array<string | number> {
+  const envNames = Array.isArray(config.allowFromEnv) ? config.allowFromEnv : [];
+  const values: Array<string | number> = [];
+  for (const envName of envNames) {
+    const raw = process.env[envName];
+    if (!raw) {
+      continue;
+    }
+    for (const entry of raw.split(/[\s,]+/)) {
+      const trimmed = entry.trim();
+      if (trimmed) {
+        values.push(trimmed);
+      }
+    }
+  }
+  return values;
 }
 
 export function listEnabledTelegramAccounts(cfg: OpenClawConfig): ResolvedTelegramAccount[] {
