@@ -51,6 +51,23 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Free runner disk space
+        run: |
+          set -eux
+          df -h
+          sudo rm -rf \
+            /opt/ghc \
+            /opt/hostedtoolcache/CodeQL \
+            /usr/local/.ghcup \
+            /usr/local/lib/android \
+            /usr/local/share/boost \
+            /usr/local/share/chromium \
+            /usr/local/share/powershell \
+            /usr/share/dotnet \
+            /usr/share/swift
+          docker system prune -af --volumes
+          df -h
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -60,6 +77,8 @@ jobs:
 
       - name: Build and push
         uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_SUMMARY: "false"
         with:
           context: .
           file: Dockerfile
@@ -75,4 +94,3 @@ jobs:
             OPENCLAW_IMAGE_GO_PACKAGES=${{ inputs.go_packages }}
             OPENCLAW_INSTALL_SHERPA_ONNX_TTS=${{ inputs.install_sherpa_onnx_tts }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
