@@ -1,0 +1,36 @@
+{
+  "name": "@openclaw/google-pse-plugin",
+  "version": "2026.6.10",
+  "description": "OpenClaw Google Programmable Search Engine plugin",
+  "type": "module",
+  "devDependencies": {
+    "@openclaw/plugin-sdk": "workspace:*"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "install": {
+      "clawhubSpec": "clawhub:@openclaw/google-pse-plugin",
+      "npmSpec": "@openclaw/google-pse-plugin",
+      "defaultChoice": "npm",
+      "minHostVersion": ">=2026.6.9",
+      "allowInvalidConfigRecovery": true
+    },
+    "compat": {
+      "pluginApi": ">=2026.6.10"
+    },
+    "build": {
+      "openclawVersion": "2026.6.10",
+      "bundledDist": false
+    },
+    "release": {
+      "publishToClawHub": true,
+      "publishToNpm": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/openclaw/openclaw"
+  }
+}

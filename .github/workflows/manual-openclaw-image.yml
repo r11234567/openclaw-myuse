@@ -6,7 +6,7 @@ on:
       image_name:
         description: "Image name to push"
         required: true
-        default: "ghcr.io/srvtkuy/openclaw"
+        default: "ghcr.io/r11234567/openclaw"
       tag:
         description: "Image tag to push"
         required: true
@@ -14,7 +14,7 @@ on:
       extensions:
         description: "Comma-separated bundled extensions"
         required: true
-        default: "telegram,searxng,google"
+        default: "telegram,searxng,google-pse"
       apt_packages:
         description: "Extra apt packages for the runtime image"
         required: false

@@ -1,0 +1,45 @@
+{
+  "id": "google-pse",
+  "icon": "https://cdn.simpleicons.org/google",
+  "activation": {
+    "onStartup": false
+  },
+  "uiHints": {
+    "webSearch.apiKey": {
+      "label": "Google PSE API Key",
+      "help": "API key for Google Programmable Search Engine Custom Search JSON API."
+    },
+    "webSearch.searchEngineId": {
+      "label": "Google PSE Search Engine ID",
+      "help": "Programmable Search Engine cx/search engine id."
+    },
+    "webSearch.baseUrl": {
+      "label": "Google PSE Base URL",
+      "help": "Custom Search JSON API endpoint. Defaults to https://www.googleapis.com/customsearch/v1."
+    }
+  },
+  "contracts": {
+    "webSearchProviders": ["google-pse", "searxng-google-pse"]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "webSearch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "apiKey": {
+            "type": ["string", "object"]
+          },
+          "searchEngineId": {
+            "type": ["string", "object"]
+          },
+          "baseUrl": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
