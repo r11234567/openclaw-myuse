@@ -18,7 +18,7 @@ on:
       apt_packages:
         description: "Extra apt packages for the runtime image"
         required: false
-        default: "bzip2 ffmpeg jq ripgrep python3-pip tesseract-ocr poppler-utils golang-go"
+        default: "bzip2 ffmpeg jq ripgrep python3-pip tesseract-ocr poppler-utils"
       pip_packages:
         description: "Extra Python packages for the runtime image"
         required: false

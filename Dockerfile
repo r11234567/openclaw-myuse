@@ -254,23 +254,36 @@ RUN if [ -n "$OPENCLAW_IMAGE_NPM_PACKAGES" ]; then \
 
 # Install additional Go CLI tools needed by bundled skills.
 # Example: docker build --build-arg OPENCLAW_IMAGE_GO_PACKAGES="github.com/steipete/gifgrep/cmd/gifgrep@latest" .
+ARG TARGETARCH
+ARG OPENCLAW_IMAGE_GO_VERSION="1.25.5"
 ARG OPENCLAW_IMAGE_GO_PACKAGES=""
 RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
     --mount=type=cache,id=openclaw-go-mod-cache,target=/root/go/pkg/mod,sharing=locked \
     --mount=type=cache,id=openclaw-go-build-cache,target=/root/.cache/go-build,sharing=locked \
     if [ -n "$OPENCLAW_IMAGE_GO_PACKAGES" ]; then \
-      if ! command -v go >/dev/null 2>&1; then \
-        apt-get update && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends golang-go; \
+      case "${TARGETARCH:-amd64}" in \
+        amd64) go_asset="go${OPENCLAW_IMAGE_GO_VERSION}.linux-amd64.tar.gz" ;; \
+        arm64) go_asset="go${OPENCLAW_IMAGE_GO_VERSION}.linux-arm64.tar.gz" ;; \
+        *) echo "unsupported Go install architecture: TARGETARCH=${TARGETARCH:-unknown}" >&2; exit 1 ;; \
+      esac && \
+      if [ ! -x /opt/openclaw-go/bin/go ]; then \
+        if ! command -v tar >/dev/null 2>&1; then \
+          apt-get update && \
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tar; \
+        fi && \
+        curl -fsSLo /tmp/openclaw-go.tar.gz "https://go.dev/dl/${go_asset}" && \
+        rm -rf /opt/openclaw-go && \
+        mkdir -p /opt/openclaw-go && \
+        tar -xzf /tmp/openclaw-go.tar.gz -C /opt/openclaw-go --strip-components=1 && \
+        rm -f /tmp/openclaw-go.tar.gz; \
       fi && \
       for package in $OPENCLAW_IMAGE_GO_PACKAGES; do \
-        GOBIN=/usr/local/bin go install "$package"; \
+        GOBIN=/usr/local/bin /opt/openclaw-go/bin/go install "$package"; \
       done; \
     fi
 
 # Optionally install sherpa-onnx TTS runtime and a default voice model.
-ARG TARGETARCH
 ARG OPENCLAW_INSTALL_SHERPA_ONNX_TTS=""
 ARG OPENCLAW_SHERPA_ONNX_VERSION="1.13.2"
 ENV SHERPA_ONNX_RUNTIME_DIR=/opt/openclaw-skill-tools/sherpa-onnx-tts/runtime
