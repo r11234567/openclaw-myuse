@@ -439,7 +439,7 @@ async function buildTelegramSessionsList(params: {
       "Sessions:",
       ...lines,
       "",
-      "Use /switch <code> to continue a session here. Manage with /rename, /cold, /delete.",
+      "Use /switch followed by a session code to continue a session here. Manage with /rename, /cold, /delete.",
     ].join("\n"),
   };
 }

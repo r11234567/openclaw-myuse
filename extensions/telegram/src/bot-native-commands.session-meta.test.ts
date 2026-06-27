@@ -617,6 +617,31 @@ describe("registerTelegramNativeCommands — session metadata", () => {
     expect(call?.sessionKey).toBe(dispatchCall?.ctx?.CommandTargetSessionKey);
   });
 
+  it("renders /sessions codes as Telegram HTML without bare code placeholders", async () => {
+    sessionMocks.loadSessionStore.mockReturnValue({
+      "agent:main:main": {
+        sessionId: "sess-main",
+        sessionShortCode: "gxkw3",
+        displayName: "Main <session>",
+        updatedAt: 1,
+      },
+    });
+
+    const { handler, sendMessage } = registerAndResolveCommandHandler({
+      commandName: "sessions",
+      cfg: {},
+      allowFrom: ["*"],
+    });
+    await handler(createTelegramPrivateCommandContext());
+
+    const call = firstMockCall(sendMessage.mock.calls, "/sessions sendMessage");
+    expect(String(call[1])).toContain("<code>gxkw3</code>");
+    expect(String(call[1])).toContain("Main &lt;session&gt;");
+    expect(String(call[1])).toContain("Use /switch followed by a session code");
+    expect(String(call[1])).not.toContain("Use /switch <code>");
+    expectRecordFields(call[2], { parse_mode: "HTML" }, "/sessions options");
+  });
+
   it("uses the target session model when building native argument menus", async () => {
     const cfg = {
       agents: {
