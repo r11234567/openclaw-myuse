@@ -1,9 +1,6 @@
 ARG OPENCLAW_BASE_IMAGE=openclaw:local
 ARG OPENCLAW_NODE_BOOKWORM_IMAGE="docker.io/library/node:24-bookworm@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63"
 
-# Heavy media/tooling dependencies live in this derived image, not in the
-# primary gateway image. The primary image still includes /app/skills; this file
-# only adds system/Python/npm/Go tools that some skills may call at runtime.
 FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS go-tools
 ARG TARGETARCH=amd64
 ARG GO_VERSION=1.25.5
