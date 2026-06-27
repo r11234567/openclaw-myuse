@@ -1,6 +1,7 @@
 import {
   appendTranscriptMessage,
   publishTranscriptUpdate,
+  readSessionTitleFieldsByIdentity as readAccessorSessionTitleFieldsByIdentity,
   resolveSessionTranscriptRuntimeReadTarget,
   resolveSessionTranscriptRuntimeTarget,
   type TranscriptMessageAppendOptions,
@@ -46,6 +47,11 @@ export type {
 };
 
 export type SessionTranscriptEvent = unknown;
+
+export type SessionTitleFields = {
+  firstUserMessage: string | null;
+  lastMessagePreview: string | null;
+};
 
 export type SessionTranscriptTargetParams = SessionTranscriptReadParams & {
   /**
@@ -156,6 +162,13 @@ export async function readSessionTranscriptEvents(
     }
   }
   return events;
+}
+
+/** Reads title and preview fields by public session identity. */
+export async function readSessionTitleFieldsByIdentity(
+  params: SessionTranscriptTargetParams,
+): Promise<SessionTitleFields> {
+  return await readAccessorSessionTitleFieldsByIdentity(params);
 }
 
 /**

@@ -72,7 +72,11 @@ import {
   type SessionScope,
 } from "../config/sessions.js";
 import { listSessionEntries as listAccessorSessionEntries } from "../config/sessions/session-accessor.js";
-import { isArchivedSessionEntry } from "../config/sessions/session-lifecycle.js";
+import {
+  hasSessionConversationContent,
+  isArchivedSessionEntry,
+  isColdSessionEntry,
+} from "../config/sessions/session-lifecycle.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { openRootFileSync } from "../infra/boundary-file-read.js";
 import { projectPluginSessionExtensionsSync } from "../plugins/host-hook-state.js";
@@ -2489,6 +2493,7 @@ function sortAndLimitSessionEntries(
 
 function filterSessionEntries(params: {
   cfg: OpenClawConfig;
+  storePath: string;
   store: Record<string, SessionEntry>;
   opts: SessionsListParams;
   now: number;
@@ -2536,6 +2541,19 @@ function filterSessionEntries(params: {
     })
     .filter(([key, entry]) => {
       if (isPhantomAgentStoreListEntry(key, entry)) {
+        return false;
+      }
+      if (isColdSessionEntry(entry)) {
+        return false;
+      }
+      if (
+        !hasGatewaySessionListContent({
+          cfg,
+          entry,
+          key,
+          storePath: params.storePath,
+        })
+      ) {
         return false;
       }
       if (!showArchived && isArchivedSessionEntry(entry)) {
@@ -2626,8 +2644,54 @@ function isPhantomAgentStoreListEntry(key: string, entry: SessionEntry | undefin
   );
 }
 
+function hasCheapGatewaySessionContent(entry: SessionEntry | undefined): boolean {
+  if (!entry) {
+    return false;
+  }
+  return Boolean(
+    typeof entry.lastInteractionAt === "number" ||
+      typeof entry.inputTokens === "number" ||
+      typeof entry.outputTokens === "number" ||
+      typeof entry.totalTokens === "number" ||
+      normalizeOptionalString(entry.displayName) ||
+      normalizeOptionalString(entry.subject) ||
+      normalizeOptionalString(entry.label),
+  );
+}
+
+function hasGatewaySessionListContent(params: {
+  cfg: OpenClawConfig;
+  entry: SessionEntry | undefined;
+  key: string;
+  storePath: string;
+}): boolean {
+  const entry = params.entry;
+  if (!entry) {
+    return false;
+  }
+  if (hasCheapGatewaySessionContent(entry)) {
+    return hasSessionConversationContent(entry);
+  }
+  if (!normalizeOptionalString(entry.sessionId)) {
+    return false;
+  }
+  const parsed = parseAgentSessionKey(params.key);
+  const agentId = parsed?.agentId
+    ? normalizeAgentId(parsed.agentId)
+    : resolveDefaultAgentId(params.cfg);
+  const fields = readScopedSessionTitleFieldsFromTranscript({
+    agentId,
+    sessionEntry: entry,
+    sessionId: entry.sessionId,
+    sessionKey: params.key,
+    storePath: params.storePath,
+  });
+  return Boolean(fields.firstUserMessage || fields.lastMessagePreview);
+}
+
 function selectSessionEntries(params: {
   cfg: OpenClawConfig;
+  storePath: string;
   store: Record<string, SessionEntry>;
   opts: SessionsListParams;
   now: number;
@@ -2656,6 +2720,7 @@ function selectSessionEntries(params: {
 
 export function filterAndSortSessionEntries(params: {
   cfg: OpenClawConfig;
+  storePath: string;
   store: Record<string, SessionEntry>;
   opts: SessionsListParams;
   now: number;
@@ -2687,6 +2752,7 @@ export function listSessionsFromStore(params: {
 
   const selection = selectSessionEntries({
     cfg,
+    storePath,
     store,
     opts,
     now,
@@ -2783,6 +2849,7 @@ export async function listSessionsFromStoreAsync(params: {
 
     const selection = selectSessionEntries({
       cfg,
+      storePath,
       store,
       opts,
       now,

@@ -86,6 +86,53 @@ export function isArchivedSessionEntry(entry?: Pick<SessionEntry, "lifecycleStat
   return entry?.lifecycleState === "archived";
 }
 
+export function isColdSessionEntry(entry?: Pick<SessionEntry, "lifecycleState"> | null) {
+  return entry?.lifecycleState === "cold";
+}
+
+export function isHiddenSessionLifecycleEntry(
+  entry?: Pick<SessionEntry, "lifecycleState"> | null,
+) {
+  return isArchivedSessionEntry(entry) || isColdSessionEntry(entry);
+}
+
+export function hasSessionConversationContent(
+  entry:
+    | Pick<
+        SessionEntry,
+        | "sessionId"
+        | "systemSent"
+        | "inputTokens"
+        | "outputTokens"
+        | "totalTokens"
+        | "lastInteractionAt"
+        | "displayName"
+        | "subject"
+        | "label"
+      >
+    | undefined
+    | null,
+): boolean {
+  if (!entry) {
+    return false;
+  }
+  if (typeof entry.lastInteractionAt === "number" && entry.lastInteractionAt > 0) {
+    return true;
+  }
+  const numericSignals = [entry.inputTokens, entry.outputTokens, entry.totalTokens];
+  if (numericSignals.some((value) => typeof value === "number" && Number.isFinite(value) && value > 0)) {
+    return true;
+  }
+  if (
+    normalizeOptionalString(entry.displayName) ||
+    normalizeOptionalString(entry.subject) ||
+    normalizeOptionalString(entry.label)
+  ) {
+    return true;
+  }
+  return Boolean(normalizeOptionalString(entry.sessionId));
+}
+
 export function isArchivedSessionKey(key: string): boolean {
   return key.includes(ARCHIVED_SESSION_KEY_MARKER);
 }
@@ -173,4 +220,15 @@ export function resolveActiveSessionLifecycleEntry(params: {
   delete next.archivedAt;
   delete next.archiveReason;
   return next;
+}
+
+export function createColdSessionEntry(params: {
+  coldAt: number;
+  previousEntry: SessionEntry;
+}): SessionEntry {
+  return clearSessionEntryDeliveryContext({
+    ...params.previousEntry,
+    lifecycleState: "cold",
+    updatedAt: params.coldAt,
+  });
 }

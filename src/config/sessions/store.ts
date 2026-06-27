@@ -280,6 +280,7 @@ export type DeleteSessionEntryLifecycleResult = {
   deletedEntry?: SessionEntry;
   deletedSessionFile?: string;
   deletedSessionId?: string;
+  deletedTranscriptPaths?: string[];
 };
 
 export type SessionEntryLifecycleRemoval = {
@@ -725,6 +726,38 @@ async function archiveLifecycleSessionTranscripts(params: {
     agentId: params.agentId,
     reason: params.reason,
   });
+}
+
+async function deleteLifecycleSessionTranscripts(params: {
+  sessionId?: string;
+  storePath: string;
+  sessionFile?: string;
+}): Promise<string[]> {
+  const sessionsDir = path.dirname(path.resolve(params.storePath));
+  const transcriptPath = resolveLifecycleTranscriptPath({
+    entry: params.sessionId
+      ? {
+          sessionId: params.sessionId,
+          ...(params.sessionFile ? { sessionFile: params.sessionFile } : {}),
+          updatedAt: Date.now(),
+        }
+      : undefined,
+    sessionsDir,
+  });
+  if (!transcriptPath) {
+    return [];
+  }
+  try {
+    fs.unlinkSync(transcriptPath);
+    emitSessionTranscriptUpdate({ sessionFile: transcriptPath });
+    return [transcriptPath];
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (code === "ENOENT") {
+      return [];
+    }
+    throw err;
+  }
 }
 
 function ensureLifecycleTranscriptHeader(params: { sessionFile: string; sessionId: string }): void {
@@ -1207,6 +1240,7 @@ export async function resetSessionEntryLifecycle(params: {
 export async function deleteSessionEntryLifecycle(params: {
   agentId?: string;
   archiveTranscript: boolean;
+  deleteMode?: "none" | "archive" | "hard";
   storePath: string;
   target: SessionLifecycleStoreTarget;
 }): Promise<DeleteSessionEntryLifecycleResult> {
@@ -1227,7 +1261,8 @@ export async function deleteSessionEntryLifecycle(params: {
     const deletedSessionFile = deletedEntry.sessionFile;
     delete store[params.target.canonicalKey];
     await saveSessionStoreUnlocked(params.storePath, store);
-    const archivedTranscripts = params.archiveTranscript
+    const deleteMode = params.deleteMode ?? (params.archiveTranscript ? "archive" : "none");
+    const archivedTranscripts = deleteMode === "archive"
       ? await archiveLifecycleSessionTranscripts({
           sessionId: deletedSessionId,
           storePath: params.storePath,
@@ -1236,10 +1271,21 @@ export async function deleteSessionEntryLifecycle(params: {
           reason: "deleted",
         })
       : [];
+    const deletedTranscriptPaths =
+      deleteMode === "hard"
+        ? await deleteLifecycleSessionTranscripts({
+            sessionId: deletedSessionId,
+            storePath: params.storePath,
+            sessionFile: deletedSessionFile,
+          })
+        : [];
     const result: DeleteSessionEntryLifecycleResult = {
       archivedTranscripts,
       deleted: true,
     };
+    if (deletedTranscriptPaths.length > 0) {
+      result.deletedTranscriptPaths = deletedTranscriptPaths;
+    }
     result.deletedEntry = cloneSessionEntry(deletedEntry);
     if (deletedSessionFile) {
       result.deletedSessionFile = deletedSessionFile;

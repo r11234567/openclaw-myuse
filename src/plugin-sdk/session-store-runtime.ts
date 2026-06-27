@@ -3,6 +3,7 @@
 import { resolveStorePath as resolveSessionStorePath } from "../config/sessions/paths.js";
 import {
   cleanupSessionLifecycleArtifacts as cleanupAccessorSessionLifecycleArtifacts,
+  deleteSessionEntryLifecycle as deleteAccessorSessionEntryLifecycle,
   listSessionEntries as listAccessorSessionEntries,
   loadSessionEntry,
   patchSessionEntry as patchAccessorSessionEntry,
@@ -79,6 +80,16 @@ type SessionLifecycleArtifactsCleanupParams = {
 type SessionLifecycleArtifactsCleanupResult = {
   archivedTranscriptArtifacts: number;
   removedEntries: number;
+};
+
+type DeleteSessionEntryLifecycleParams = {
+  agentId?: string;
+  deleteMode?: "none" | "archive" | "hard";
+  storePath: string;
+  target: {
+    canonicalKey: string;
+    storeKeys: string[];
+  };
 };
 
 function toSessionAccessScope(params: SessionStoreReadParams): SessionAccessScope {
@@ -184,6 +195,20 @@ export async function cleanupSessionLifecycleArtifacts(
     orphanTranscriptMinAgeMs: params.orphanTranscriptMinAgeMs,
     nowMs: params.nowMs,
   });
+}
+
+/** Deletes one session entry through the shared session lifecycle boundary. */
+export async function deleteSessionEntryLifecycle(
+  params: DeleteSessionEntryLifecycleParams,
+): Promise<{ deleted: boolean }> {
+  const result = await deleteAccessorSessionEntryLifecycle({
+    agentId: params.agentId,
+    archiveTranscript: params.deleteMode !== "none",
+    deleteMode: params.deleteMode ?? "archive",
+    storePath: params.storePath,
+    target: params.target,
+  });
+  return { deleted: result.deleted };
 }
 
 export { resolveSessionStoreEntry } from "../config/sessions/store-entry.js";

@@ -54,8 +54,10 @@ import {
   listConfiguredSessionStoreAgentIds,
   deleteSessionEntryLifecycle,
   type SessionEntry,
+  updateSessionStoreEntry,
   updateSessionStore,
 } from "../../config/sessions.js";
+import { createColdSessionEntry } from "../../config/sessions/session-lifecycle.js";
 import { resolveAgentMainSessionKey } from "../../config/sessions/main-session.js";
 import {
   applySessionPatchProjection,
@@ -2242,6 +2244,12 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     }
 
     const deleteTranscript = typeof p.deleteTranscript === "boolean" ? p.deleteTranscript : true;
+    const deleteMode =
+      p.deleteMode === "none" || p.deleteMode === "archive" || p.deleteMode === "hard"
+        ? p.deleteMode
+        : deleteTranscript
+          ? "archive"
+          : "none";
     const {
       cleanupSessionBeforeMutation,
       emitGatewaySessionEndPluginHook,
@@ -2270,6 +2278,7 @@ export const sessionsHandlers: GatewayRequestHandlers = {
     const deletion = await deleteSessionEntryLifecycle({
       agentId: target.agentId,
       archiveTranscript: deleteTranscript,
+      deleteMode,
       storePath,
       target: {
         canonicalKey: target.canonicalKey,
@@ -2308,6 +2317,109 @@ export const sessionsHandlers: GatewayRequestHandlers = {
           ? { agentId: requestedAgentId }
           : {}),
         reason: "delete",
+      });
+    }
+  },
+  "sessions.coldStore": async ({ params, respond, client, isWebchatConnect, context }) => {
+    if (!assertValidParams(params, validateSessionsDeleteParams, "sessions.coldStore", respond)) {
+      return;
+    }
+    const p = params;
+    const key = requireSessionKey(p.key, respond);
+    if (!key) {
+      return;
+    }
+    if (rejectWebchatSessionMutation({ action: "delete", client, isWebchatConnect, respond })) {
+      return;
+    }
+
+    const cfg = context.getRuntimeConfig();
+    const requestedAgent = resolveRequestedGlobalAgentId(cfg, key, p.agentId);
+    if (!requestedAgent.ok) {
+      respond(false, undefined, requestedAgent.error);
+      return;
+    }
+    const requestedAgentId = requestedAgent.agentId;
+    const { target, storePath } = resolveGatewaySessionTargetFromKey(key, cfg, {
+      agentId: requestedAgentId,
+    });
+    const mainKey = resolveMainSessionKey(cfg);
+    const isSelectedNonDefaultGlobal =
+      target.canonicalKey === "global" &&
+      requestedAgentId !== undefined &&
+      requestedAgentId !== resolveDefaultAgentId(cfg);
+    if (target.canonicalKey === mainKey && !isSelectedNonDefaultGlobal) {
+      respond(
+        false,
+        undefined,
+        errorShape(ErrorCodes.INVALID_REQUEST, `Cannot cold-store the main session (${mainKey}).`),
+      );
+      return;
+    }
+
+    const {
+      cleanupSessionBeforeMutation,
+      emitGatewaySessionEndPluginHook,
+      emitSessionUnboundLifecycleEvent,
+    } = await loadSessionsRuntimeModule();
+
+    const { entry, legacyKey, canonicalKey } = loadSessionEntry(key, {
+      agentId: requestedAgentId,
+    });
+    if (rejectPluginRuntimeDeleteMismatch({ client, key: canonicalKey ?? key, entry, respond })) {
+      return;
+    }
+    if (!entry) {
+      respond(true, { ok: true, key: target.canonicalKey, coldStored: false }, undefined);
+      return;
+    }
+    const mutationCleanupError = await cleanupSessionBeforeMutation({
+      cfg,
+      key,
+      target,
+      entry,
+      legacyKey,
+      canonicalKey,
+      reason: "session-delete",
+    });
+    if (mutationCleanupError) {
+      respond(false, undefined, mutationCleanupError);
+      return;
+    }
+    const coldAt = Date.now();
+    const patched = await updateSessionStoreEntry({
+      storePath,
+      sessionKey: target.canonicalKey,
+      update: (current) => createColdSessionEntry({ previousEntry: current, coldAt }),
+      requireWriteSuccess: true,
+    });
+    const coldStored = Boolean(patched);
+    if (coldStored) {
+      emitGatewaySessionEndPluginHook({
+        cfg,
+        sessionKey: target.canonicalKey ?? key,
+        sessionId: entry.sessionId,
+        storePath,
+        sessionFile: entry.sessionFile,
+        agentId: target.agentId,
+        reason: "deleted",
+        archivedTranscripts: [],
+      });
+      const emitLifecycleHooks = p.emitLifecycleHooks !== false;
+      await emitSessionUnboundLifecycleEvent({
+        targetSessionKey: target.canonicalKey ?? key,
+        reason: "session-delete",
+        emitHooks: emitLifecycleHooks,
+      });
+    }
+    respond(true, { ok: true, key: target.canonicalKey, coldStored }, undefined);
+    if (coldStored) {
+      emitSessionsChanged(context, {
+        sessionKey: target.canonicalKey,
+        ...(target.canonicalKey === "global" && requestedAgentId
+          ? { agentId: requestedAgentId }
+          : {}),
+        reason: "cold-store",
       });
     }
   },

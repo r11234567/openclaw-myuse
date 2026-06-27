@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  createColdSessionEntry,
   createArchivedSessionEntry,
+  hasSessionConversationContent,
   resolveActiveSessionLifecycleEntry,
 } from "./session-lifecycle.js";
 import type { SessionEntry } from "./types.js";
@@ -67,5 +69,37 @@ describe("session lifecycle metadata", () => {
     expect(active.activeSessionKey).toBe("agent:main:telegram:direct:chat-1");
     expect(active.sessionShortCode).toMatch(/^[a-z0-9]{5}$/);
     expect(active.archivedAt).toBeUndefined();
+  });
+
+  it("cold-stores an entry by state while clearing delivery context", () => {
+    const cold = createColdSessionEntry({
+      coldAt: 789,
+      previousEntry: {
+        sessionId: "session-old",
+        sessionFile: "/tmp/session-old.jsonl",
+        updatedAt: 1,
+        route: { channel: "telegram", target: { to: "chat-1" } },
+        deliveryContext: { channel: "telegram", to: "chat-1", accountId: "main" },
+        pendingFinalDelivery: true,
+        restartRecoveryDeliveryContext: { channel: "telegram", to: "chat-1" },
+      } satisfies SessionEntry,
+    });
+
+    expect(cold.lifecycleState).toBe("cold");
+    expect(cold.updatedAt).toBe(789);
+    expect(cold.sessionId).toBe("session-old");
+    expect(cold.route).toBeUndefined();
+    expect(cold.deliveryContext).toBeUndefined();
+    expect(cold.pendingFinalDelivery).toBeUndefined();
+    expect(cold.restartRecoveryDeliveryContext).toBeUndefined();
+  });
+
+  it("classifies empty entries without transcript identity or activity", () => {
+    expect(hasSessionConversationContent(undefined)).toBe(false);
+    expect(hasSessionConversationContent({ sessionId: "", updatedAt: 1 })).toBe(false);
+    expect(hasSessionConversationContent({ sessionId: "session-1", updatedAt: 1 })).toBe(true);
+    expect(hasSessionConversationContent({ sessionId: "", updatedAt: 1, inputTokens: 1 })).toBe(
+      true,
+    );
   });
 });

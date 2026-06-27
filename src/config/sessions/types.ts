@@ -216,7 +216,7 @@ export type SessionEntry = {
    * conversation key; archived entries are selectable history rows that keep
    * transcript identity but must not retain delivery targets.
    */
-  lifecycleState?: "active" | "archived";
+  lifecycleState?: "active" | "archived" | "cold";
   /** Stable short selector used by chat surfaces with compact command syntax. */
   sessionShortCode?: string;
   /** Route key that currently owns this conversation family. */

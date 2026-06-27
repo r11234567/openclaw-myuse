@@ -243,6 +243,11 @@ export type SessionTranscriptReadTarget = Omit<
   sessionKey?: string;
 };
 
+export type SessionTitleFields = {
+  firstUserMessage: string | null;
+  lastMessagePreview: string | null;
+};
+
 export type SessionTranscriptWriteScope = Omit<SessionTranscriptAccessScope, "sessionId"> & {
   /** Optional for appenders that can operate on an existing explicit transcript target. */
   sessionId?: string;
@@ -695,6 +700,8 @@ export type DeleteSessionEntryLifecycleParams = {
   agentId?: string;
   /** Whether transcript artifacts should be archived/deleted with the entry. */
   archiveTranscript: boolean;
+  /** Explicit transcript transition. Defaults to archive/delete compatibility. */
+  deleteMode?: "none" | "archive" | "hard";
   /** Explicit store target for file-backed stores and SQLite migration adapters. */
   storePath: string;
   /** Canonical key plus aliases that identify the logical entry. */
@@ -2571,6 +2578,83 @@ export async function resolveSessionTranscriptRuntimeReadTarget(
     sessionId: scope.sessionId,
     sessionKey,
   };
+}
+
+function extractTranscriptMessageText(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const record = value as { content?: unknown; text?: unknown };
+  if (typeof record.text === "string" && record.text.trim()) {
+    return record.text.trim();
+  }
+  if (typeof record.content === "string" && record.content.trim()) {
+    return record.content.trim();
+  }
+  if (Array.isArray(record.content)) {
+    const parts = record.content
+      .map((part) => {
+        if (!part || typeof part !== "object" || Array.isArray(part)) {
+          return "";
+        }
+        const text = (part as { text?: unknown }).text;
+        return typeof text === "string" ? text : "";
+      })
+      .filter(Boolean);
+    const joined = parts.join(" ").trim();
+    return joined || null;
+  }
+  return null;
+}
+
+function extractTranscriptMessageRole(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  const role = (value as { role?: unknown }).role;
+  return typeof role === "string" ? role : null;
+}
+
+export async function readSessionTitleFieldsByIdentity(
+  scope: SessionTranscriptRuntimeScope,
+): Promise<SessionTitleFields> {
+  const target = await resolveSessionTranscriptRuntimeReadTarget(scope);
+  let data = "";
+  try {
+    data = await fs.promises.readFile(target.sessionFile, "utf8");
+  } catch {
+    return { firstUserMessage: null, lastMessagePreview: null };
+  }
+  let firstUserMessage: string | null = null;
+  let lastMessagePreview: string | null = null;
+  for (const line of data.split(/\r?\n/)) {
+    if (!line.trim()) {
+      continue;
+    }
+    let event: unknown;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (!event || typeof event !== "object" || Array.isArray(event)) {
+      continue;
+    }
+    const record = event as { message?: unknown; role?: unknown; type?: unknown };
+    const message = record.message && typeof record.message === "object" ? record.message : event;
+    const role = extractTranscriptMessageRole(message) ?? extractTranscriptMessageRole(event);
+    const text = extractTranscriptMessageText(message);
+    if (!text) {
+      continue;
+    }
+    if (role === "user" && !firstUserMessage) {
+      firstUserMessage = text;
+    }
+    if (role === "user" || role === "assistant") {
+      lastMessagePreview = text;
+    }
+  }
+  return { firstUserMessage, lastMessagePreview };
 }
 
 type SessionTranscriptRuntimeContext = {

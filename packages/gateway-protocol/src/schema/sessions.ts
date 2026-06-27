@@ -384,6 +384,9 @@ export const SessionsDeleteParamsSchema = Type.Object(
     key: NonEmptyString,
     agentId: Type.Optional(NonEmptyString),
     deleteTranscript: Type.Optional(Type.Boolean()),
+    deleteMode: Type.Optional(
+      Type.Union([Type.Literal("none"), Type.Literal("archive"), Type.Literal("hard")]),
+    ),
     // Internal control: when false, still unbind thread bindings but skip hook emission.
     emitLifecycleHooks: Type.Optional(Type.Boolean()),
   },

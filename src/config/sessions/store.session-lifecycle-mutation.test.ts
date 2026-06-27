@@ -108,4 +108,39 @@ describe("session store lifecycle mutations", () => {
     expect(store["agent:main:keep"]?.sessionId).toBe("keep-session");
     expect(fs.existsSync(transcriptPath)).toBe(false);
   });
+
+  it("hard-deletes an entry and removes its transcript without archiving it", async () => {
+    const transcriptPath = path.join(tempDir, "hard-delete-session.jsonl");
+    const now = Date.now();
+    fs.writeFileSync(transcriptPath, '{"type":"session","id":"hard-delete-session"}\n', "utf-8");
+    await saveSessionStore(
+      storePath,
+      {
+        "agent:main:delete": {
+          sessionFile: transcriptPath,
+          sessionId: "hard-delete-session",
+          updatedAt: now,
+        },
+      },
+      { skipMaintenance: true },
+    );
+
+    const result = await deleteSessionEntryLifecycle({
+      archiveTranscript: true,
+      deleteMode: "hard",
+      storePath,
+      target: {
+        canonicalKey: "agent:main:delete",
+        storeKeys: ["agent:main:delete"],
+      },
+    });
+
+    const store = loadSessionStore(storePath, { skipCache: true });
+    expect(result.deleted).toBe(true);
+    expect(result.archivedTranscripts).toHaveLength(0);
+    expect(result.deletedTranscriptPaths).toEqual([transcriptPath]);
+    expect(store["agent:main:delete"]).toBeUndefined();
+    expect(fs.existsSync(transcriptPath)).toBe(false);
+    expect(fs.readdirSync(tempDir).some((entry) => entry.includes(".deleted."))).toBe(false);
+  });
 });
