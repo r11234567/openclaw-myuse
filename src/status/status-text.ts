@@ -84,12 +84,12 @@ function resolveStatusChannelFeatureLine(params: {
     normalizeAccountId,
   );
   const richMessagesSetting = accountConfig?.richMessages ?? telegramConfig?.richMessages;
-  if (richMessagesSetting === true) {
+  if (richMessagesSetting !== false) {
     return "Telegram rich messages: on · Bot API 10.1 sendRichMessage enabled";
   }
   return accountConfig?.richMessages === false
     ? "Telegram rich messages: off · enable richMessages for this Telegram account"
-    : "Telegram rich messages: off · set channels.telegram.richMessages=true for tables/details/rich media";
+    : "Telegram rich messages: off · remove channels.telegram.richMessages=false to use the default rich mode";
 }
 
 let statusMessageRuntimePromise: Promise<typeof import("../auto-reply/status.runtime.js")> | null =

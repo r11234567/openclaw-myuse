@@ -3,7 +3,7 @@ import { buildStatusText } from "./status-text.js";
 
 describe("buildStatusText channel features", () => {
   it.each([
-    { richMessages: undefined, expected: "Telegram rich messages: off" },
+    { richMessages: undefined, expected: "Telegram rich messages: on" },
     { richMessages: false, expected: "Telegram rich messages: off" },
     { richMessages: true, expected: "Telegram rich messages: on" },
   ])("shows Telegram rich message state for %s", async ({ richMessages, expected }) => {
@@ -26,10 +26,10 @@ describe("buildStatusText channel features", () => {
     });
 
     expect(text).toContain(expected);
-    if (richMessages === true) {
+    if (richMessages !== false) {
       expect(text).toContain("sendRichMessage enabled");
     } else {
-      expect(text).toContain("channels.telegram.richMessages=true");
+      expect(text).toContain("channels.telegram.richMessages=false");
     }
   });
 
