@@ -80,7 +80,7 @@ RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/sto
     else \
       cat /tmp/openclaw-pnpm-install.log; \
       if grep -q "ERR_PNPM_TARBALL_INTEGRITY" /tmp/openclaw-pnpm-install.log; then \
-        pnpm store prune; \
+        find /root/.local/share/pnpm/store -mindepth 1 -maxdepth 1 -exec rm -rf {} +; \
         NODE_OPTIONS=--max-old-space-size=2048 pnpm install $install_args; \
       else \
         exit 1; \

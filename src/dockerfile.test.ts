@@ -132,7 +132,9 @@ describe("Dockerfile", () => {
 
     expect(dockerfile).toContain("> /tmp/openclaw-pnpm-install.log 2>&1");
     expect(dockerfile).toContain('grep -q "ERR_PNPM_TARBALL_INTEGRITY"');
-    expect(dockerfile).toContain("pnpm store prune");
+    expect(dockerfile).toContain(
+      "find /root/.local/share/pnpm/store -mindepth 1 -maxdepth 1 -exec rm -rf {} +",
+    );
     expect(dockerfile).toContain("NODE_OPTIONS=--max-old-space-size=2048 pnpm install $install_args");
   });
 
