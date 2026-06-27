@@ -94,7 +94,7 @@ function buildChunkTextResolver(params: {
   richMessages?: boolean;
   skipEntityDetection?: boolean;
 }): ChunkTextFn {
-  if (params.richMessages === true) {
+  if (params.richMessages !== false) {
     return (markdown: string) =>
       splitTelegramRichMessageTextChunks({
         text: markdown,
@@ -782,7 +782,7 @@ export async function deliverReplies(params: {
   const hasMessageSentHooks = hookRunner?.hasHooks("message_sent") ?? false;
   const chunkText = buildChunkTextResolver({
     textLimit:
-      params.richMessages === true
+      params.richMessages !== false
         ? Math.min(params.textLimit, TELEGRAM_RICH_TEXT_LIMIT)
         : Math.min(params.textLimit, 4000),
     chunkMode: params.chunkMode ?? "length",

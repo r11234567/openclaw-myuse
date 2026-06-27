@@ -395,7 +395,23 @@ async function buildTelegramSessionsList(params: {
           : "可用";
     return `${code}  ${formatTelegramSessionUpdatedAt(entry.updatedAt)}  ${status}  ${title}`;
   });
-  const buttons: TelegramInlineButtons = [];
+  const buttons: TelegramInlineButtons = pageSessions
+    .map(({ entry }) => {
+      const code = normalizeTelegramSessionShortCode(entry.sessionShortCode);
+      return code
+        ? [
+            {
+              text: `复制 ${code}`,
+              copy_text: { text: code },
+            },
+            {
+              text: `切换 ${code}`,
+              callback_data: buildTelegramNativeCommandCallbackData(`/switch ${code}`),
+            },
+          ]
+        : [];
+    })
+    .filter((row): row is TelegramInlineButtons[number] => row.length > 0);
   if (totalPages > 1) {
     const row: TelegramInlineButtons[number] = [];
     if (page > 1) {
@@ -1542,7 +1558,16 @@ export const registerTelegramNativeCommands = ({
           bot.api.sendMessage(
             commandContext.runtimeContext.chatId,
             `Current session: ${code}\n${title}`,
-            buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {},
+            {
+              ...(buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {}),
+              ...(code !== "none"
+                ? {
+                    reply_markup: buildInlineKeyboard([
+                      [{ text: `复制 ${code}`, copy_text: { text: code } }],
+                    ]),
+                  }
+                : {}),
+            },
           ),
       });
     });

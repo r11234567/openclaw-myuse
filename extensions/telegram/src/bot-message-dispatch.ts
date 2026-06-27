@@ -866,16 +866,16 @@ export const dispatchTelegramMessage = async ({
       ? Math.min(resolveTelegramDraftStreamingChunking(cfg, route.accountId).maxChars, textLimit)
       : Math.min(
           textLimit,
-          telegramCfg.richMessages === true ? TELEGRAM_RICH_TEXT_LIMIT : TELEGRAM_TEXT_CHUNK_LIMIT,
+          telegramCfg.richMessages !== false ? TELEGRAM_RICH_TEXT_LIMIT : TELEGRAM_TEXT_CHUNK_LIMIT,
         );
   const tableMode = resolveMarkdownTableMode({
     cfg,
     channel: "telegram",
     accountId: route.accountId,
-    supportsBlockTables: telegramCfg.richMessages === true,
+    supportsBlockTables: telegramCfg.richMessages !== false,
   });
   const renderStreamText = (text: string): TelegramDraftPreview =>
-    telegramCfg.richMessages === true
+    telegramCfg.richMessages !== false
       ? {
           text,
           richMessage: buildTelegramRichMarkdown(text, {
@@ -1053,7 +1053,7 @@ export const dispatchTelegramMessage = async ({
         renderTelegramProgressDraftPreview(
           streamText,
           options?.lines ?? [],
-          telegramCfg.richMessages === true,
+          telegramCfg.richMessages !== false,
         ),
       );
       if (options?.flush) {

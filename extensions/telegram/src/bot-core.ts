@@ -259,8 +259,8 @@ export function createTelegramBotCore(
       DEFAULT_GROUP_HISTORY_LIMIT,
   );
   const groupHistories = new Map<string, HistoryEntry[]>();
-  const telegramTextLimit =
-    telegramCfg.richMessages === true ? TELEGRAM_RICH_TEXT_LIMIT : TELEGRAM_TEXT_CHUNK_LIMIT;
+  const useRichMessages = telegramCfg.richMessages !== false;
+  const telegramTextLimit = useRichMessages ? TELEGRAM_RICH_TEXT_LIMIT : TELEGRAM_TEXT_CHUNK_LIMIT;
   const textLimit = Math.min(
     resolveTextChunkLimit(cfg, "telegram", account.accountId, {
       fallbackLimit: telegramTextLimit,

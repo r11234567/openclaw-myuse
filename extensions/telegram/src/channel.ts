@@ -785,7 +785,7 @@ export const telegramPlugin = createChatChannelPlugin({
         });
         const capabilities = inlineButtonsScope === "off" ? [] : ["inlineButtons"];
         const selectedAccountId = accountId ?? resolveDefaultTelegramAccountId(cfg);
-        if (mergeTelegramAccountConfig(cfg, selectedAccountId).richMessages === true) {
+        if (mergeTelegramAccountConfig(cfg, selectedAccountId).richMessages !== false) {
           capabilities.push("richText");
         }
         return capabilities;

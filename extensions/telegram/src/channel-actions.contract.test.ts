@@ -24,10 +24,10 @@ describe("telegram actions contract", () => {
   });
 
   it.each([
-    { richMessages: undefined, expected: false },
+    { richMessages: undefined, expected: true },
     { richMessages: false, expected: false },
     { richMessages: true, expected: true },
-  ])("advertises Telegram rich text only when enabled", ({ richMessages, expected }) => {
+  ])("advertises Telegram rich text unless explicitly disabled", ({ richMessages, expected }) => {
     const capabilities = telegramPlugin.agentPrompt?.messageToolCapabilities?.({
       cfg: {
         channels: {

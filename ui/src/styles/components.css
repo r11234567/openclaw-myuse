@@ -4187,6 +4187,17 @@ td.data-table-key-col {
   background: var(--secondary);
 }
 
+.chat-text :where(.katex-display) {
+  margin: 0.75em 0 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
+}
+
+.chat-text :where(.katex) {
+  font-size: 1.02em;
+}
+
 /* Cron markdown overrides must come after .chat-text rules to win cascade. */
 .cron-run-entry__body.chat-text table,
 .cron-job-detail-value.chat-text table {

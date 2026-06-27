@@ -121,7 +121,7 @@ export async function sendTelegramText(
     silent: opts?.silent,
   });
   const textMode = opts?.textMode ?? "markdown";
-  if (opts?.richMessages === true) {
+  if (opts?.richMessages !== false) {
     const richMessage = buildTelegramRichMessage(text, textMode, {
       skipEntityDetection: opts.linkPreview === false,
       tableMode: opts.tableMode,

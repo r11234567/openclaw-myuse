@@ -56,6 +56,24 @@ describe("toSanitizedMarkdownHtml", () => {
     expect(html).not.toContain("turn2view0");
   });
 
+  describe("math", () => {
+    it("renders inline and block LaTeX with KaTeX", () => {
+      const html = toSanitizedMarkdownHtml("Inline $x^2$.\n\n$$\\frac{1}{2}$$");
+
+      expect(html).toContain('<span class="katex">');
+      expect(html).toContain('<span class="katex-display">');
+      expect(html).toContain("mfrac");
+      expect(html).not.toContain("$x^2$");
+    });
+
+    it("keeps unsafe math commands inert", () => {
+      const html = toSanitizedMarkdownHtml("$\\href{javascript:alert(1)}{x}$");
+
+      expect(html).not.toContain("javascript:");
+      expect(html).toContain("katex");
+    });
+  });
+
   // ── Additional tests for markdown-it migration ──
   describe("www autolinks", () => {
     it("links www.example.com", () => {

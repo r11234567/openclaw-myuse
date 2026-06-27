@@ -424,9 +424,9 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
   </Accordion>
 
   <Accordion title="Rich message formatting">
-    Outbound text uses standard Telegram HTML messages by default so replies remain readable across current Telegram clients. This compatibility mode supports normal bold, italic, links, code, spoilers, and quotes, but not Bot API 10.1 rich-only blocks such as native tables, details, rich media, and formulas.
+    Outbound text uses Bot API 10.1 rich messages by default. This path uses Telegram's official `sendRichMessage` method with `InputRichMessage.html`, enabling rich-only blocks such as native tables, details, rich media, and formulas.
 
-    Set `channels.telegram.richMessages: true` to opt into Bot API 10.1 rich messages:
+    Keep the default or set `channels.telegram.richMessages: true` explicitly:
 
 ```json5
 {
@@ -447,7 +447,7 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
 
     This keeps model text away from Telegram Rich Markdown sigils, so currency like `$400-600K` is not parsed as math. Long rich text is split automatically across Telegram's rich text and rich block limits. Tables over Telegram's column limit are sent as code blocks.
 
-    Default: off for client compatibility. Rich messages require compatible Telegram clients; some current Desktop, Web, Android, and third-party clients display accepted rich messages as unsupported. Keep this option disabled unless every client used with the bot can render them. `/status` shows whether the current Telegram session has rich messages on or off.
+    Default: on. Set `channels.telegram.richMessages: false` only when you need legacy `sendMessage` HTML compatibility for older or third-party clients. `/status` shows whether the current Telegram session has rich messages on or off.
 
     Link previews are enabled by default. `channels.telegram.linkPreview: false` skips automatic entity detection for rich text.
 

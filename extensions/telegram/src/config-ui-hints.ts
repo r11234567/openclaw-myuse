@@ -64,7 +64,7 @@ export const telegramChannelConfigUiHints = {
   },
   richMessages: {
     label: "Telegram Rich Messages",
-    help: "Opt into Bot API 10.1 rich text sends and edits, including native tables and rich media. Default: false because some current Telegram clients render these messages as unsupported.",
+    help: "Use Bot API 10.1 rich text sends and edits, including native tables, rich media, and formulas. Default: true; set false to force legacy sendMessage HTML compatibility.",
   },
   "streaming.block.enabled": {
     label: "Telegram Block Streaming Enabled",

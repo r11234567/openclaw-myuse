@@ -125,6 +125,7 @@ const sendMessageTelegram: typeof sendMessageTelegramImpl = async (to, text, opt
   );
 
 const TELEGRAM_TEST_CFG = {};
+const TELEGRAM_LEGACY_TEXT_TEST_CFG = { channels: { telegram: { richMessages: false } } };
 let sentMessageStore: NonNullable<Parameters<typeof setTelegramSentMessageStoreForTest>[0]>;
 
 function markdownTable(columns: number): string {
@@ -552,6 +553,13 @@ describe("buildInlineKeyboard", () => {
         },
       },
       {
+        name: "keeps copy text buttons",
+        input: [[{ text: "Copy", copy_text: { text: "abc12" } }]],
+        expected: {
+          inline_keyboard: [[{ text: "Copy", copy_text: { text: "abc12" } }]],
+        },
+      },
+      {
         name: "prefers url over callback data when both are present",
         input: [[{ text: "Open", callback_data: "cmd:open", url: "https://example.com" }]],
         expected: {
@@ -906,7 +914,7 @@ describe("sendMessageTelegram", () => {
     ] as const;
     for (const testCase of cases) {
       const cfg = {
-        channels: { telegram: { linkPreview: false } },
+        channels: { telegram: { linkPreview: false, richMessages: false } },
       };
       loadConfig.mockReturnValue(cfg);
       const api = { sendMessage: testCase.sendMessage } as unknown as {
@@ -921,7 +929,7 @@ describe("sendMessageTelegram", () => {
     }
   });
 
-  it("sends formatted HTML for durable text", async () => {
+  it("sends rich messages by default for durable text", async () => {
     botApi.sendMessage.mockResolvedValue({ message_id: 45, chat: { id: "123" } });
 
     await sendMessageTelegram("123", "**hi**", {
@@ -929,10 +937,11 @@ describe("sendMessageTelegram", () => {
       token: "tok",
     });
 
-    expect(botApi.sendMessage).toHaveBeenCalledWith("123", "<b>hi</b>", {
-      parse_mode: "HTML",
+    expect(botApi.sendMessage).not.toHaveBeenCalled();
+    expect(botRawApi.sendRichMessage).toHaveBeenCalledTimes(1);
+    expect(botRawApi.sendRichMessage.mock.calls[0]?.[0]?.rich_message).toEqual({
+      html: "<b>hi</b>",
     });
-    expect(botRawApi.sendRichMessage).not.toHaveBeenCalled();
   });
 
   it("sends native rich tables when explicitly enabled", async () => {
@@ -1144,7 +1153,7 @@ describe("sendMessageTelegram", () => {
     ].join("\n");
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1162,7 +1171,7 @@ describe("sendMessageTelegram", () => {
     botApi.sendMessage.mockResolvedValue({ message_id: 47, chat: { id: "123" } });
 
     await sendMessageTelegram("123", "See ![diagram](https://example.com/diagram.png)", {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1174,7 +1183,7 @@ describe("sendMessageTelegram", () => {
     botApi.sendMessage.mockResolvedValue({ message_id: 48, chat: { id: "123" } });
 
     await sendMessageTelegram("123", '<b>See</b><img src="https://example.com/diagram.png">', {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
       textMode: "html",
     });
@@ -1192,7 +1201,7 @@ describe("sendMessageTelegram", () => {
     const markdown = markdownTable(20);
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1206,7 +1215,7 @@ describe("sendMessageTelegram", () => {
     const markdown = markdownTable(21);
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1222,7 +1231,7 @@ describe("sendMessageTelegram", () => {
     const markdown = `~~~\n${markdownTable(25)}\n~~~`;
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1238,7 +1247,7 @@ describe("sendMessageTelegram", () => {
     const markdown = ["Before", "~~~", fencedTable, "~~~", "After", outsideTable].join("\n");
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1256,7 +1265,7 @@ describe("sendMessageTelegram", () => {
     const markdown = `# Long\n\n${"**section** with _style_ and `code`\n".repeat(800)}`;
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1270,7 +1279,7 @@ describe("sendMessageTelegram", () => {
     const markdown = `# Long\n\n${"**section** with _style_ and `code`\n".repeat(3000)}`;
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1287,7 +1296,7 @@ describe("sendMessageTelegram", () => {
     const markdown = `**${"A".repeat(70_000)}**`;
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1304,7 +1313,7 @@ describe("sendMessageTelegram", () => {
     );
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1318,7 +1327,7 @@ describe("sendMessageTelegram", () => {
     const markdown = Array.from({ length: 600 }, (_, index) => `# Heading ${index + 1}`).join("\n");
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1332,7 +1341,7 @@ describe("sendMessageTelegram", () => {
     const markdown = Array.from({ length: 600 }, (_, index) => `- Item ${index + 1}`).join("\n");
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1350,7 +1359,7 @@ describe("sendMessageTelegram", () => {
     ].join("\n");
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1366,7 +1375,7 @@ describe("sendMessageTelegram", () => {
     )}\n~~~`;
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1383,7 +1392,7 @@ describe("sendMessageTelegram", () => {
     ).join("\n")}\n~~~`;
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1397,7 +1406,7 @@ describe("sendMessageTelegram", () => {
     const markdown = `~~~ts\n${"const value = 1;\n".repeat(5000)}~~~`;
 
     await sendMessageTelegram("123", markdown, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
     });
 
@@ -1411,7 +1420,7 @@ describe("sendMessageTelegram", () => {
     const html = `<b>${"A".repeat(70_000)}</b>`;
 
     await sendMessageTelegram("123", html, {
-      cfg: TELEGRAM_TEST_CFG,
+      cfg: TELEGRAM_LEGACY_TEXT_TEST_CFG,
       token: "tok",
       textMode: "html",
       buttons: [[{ text: "OK", callback_data: "ok" }]],

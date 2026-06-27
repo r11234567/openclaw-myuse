@@ -15,8 +15,10 @@ import rust from "highlight.js/lib/languages/rust";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
+import katex from "katex";
 import MarkdownIt from "markdown-it";
 import markdownItTaskLists from "markdown-it-task-lists";
+import markdownItTexmath from "markdown-it-texmath";
 import { stripUnsupportedCitationControlMarkers } from "../../../src/shared/text/citation-control-markers.js";
 import { i18n, t } from "../i18n/index.ts";
 import { truncateText } from "./format.ts";
@@ -57,6 +59,32 @@ const allowedTags = [
   "tr",
   "ul",
   "img",
+  "annotation",
+  "menclose",
+  "math",
+  "mfrac",
+  "mi",
+  "mmultiscripts",
+  "mn",
+  "mo",
+  "mover",
+  "mpadded",
+  "mphantom",
+  "mroot",
+  "mrow",
+  "mspace",
+  "msub",
+  "msubsup",
+  "msqrt",
+  "msup",
+  "mtable",
+  "mtd",
+  "mtext",
+  "mtr",
+  "munder",
+  "munderover",
+  "none",
+  "semantics",
 ];
 
 const allowedAttrs = [
@@ -73,6 +101,25 @@ const allowedAttrs = [
   "data-code",
   "type",
   "aria-label",
+  "aria-hidden",
+  "accent",
+  "accentunder",
+  "align",
+  "columnalign",
+  "columnspacing",
+  "displaystyle",
+  "encoding",
+  "fence",
+  "lspace",
+  "mathvariant",
+  "minsize",
+  "movablelimits",
+  "rspace",
+  "rowspacing",
+  "scriptlevel",
+  "separator",
+  "stretchy",
+  "xmlns",
 ];
 const sanitizeOptions = {
   ALLOWED_TAGS: allowedTags,
@@ -897,6 +944,15 @@ md.core.ruler.after("linkify", "linkify-cjk-trim", (state) => {
 // label: false avoids wrapping item text in <label>, which would break
 // accessibility when the item contains links (MDN warns against anchors inside labels).
 md.use(markdownItTaskLists, { enabled: false, label: false });
+md.use(markdownItTexmath, {
+  engine: katex,
+  delimiters: "dollars",
+  katexOptions: {
+    throwOnError: false,
+    strict: "warn",
+    trust: false,
+  },
+});
 
 // Mark the <input> html_inline token inside task-list items as trusted so the
 // html_inline override lets it through. With label: false, the plugin generates

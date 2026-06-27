@@ -12,6 +12,7 @@
 @import "./styles/workboard.css";
 @import "./styles/skill-workshop.css";
 @import "@create-markdown/preview/themes/system.css";
+@import "katex/dist/katex.min.css";
 
 .cm-preview {
   --cm-mono: var(--mono);
