@@ -46,6 +46,15 @@ sudo systemctl reload nginx
 - If startup fails after a restart, check `config.d/*.json5` for stale config keys before blaming the image.
 - To add skills later, put persistent skill files under `state/skills/` or install them into the managed OpenClaw skill root; do not rely on a one-off container build layer.
 
+## Session Changes
+
+- Telegram and Gateway share the same session registry; Telegram does not keep a private session layer.
+- `/new` lifecycle-archives the old session and starts a fresh active session. Archived sessions keep stable 5-character codes for Telegram switching.
+- `/sessions` shows shared sessions with short code, local time, status, and title; recent activity sorts first.
+- `/switch`, `/rename`, `/cold`, and `/delete` operate on the shared session entry.
+- Cold storage is irreversible for chat reuse, clears delivery context, and keeps the transcript for memory/dreaming. Delete removes the session entry and transcript file.
+- Gateway session lists hide cold sessions and filter empty sessions from normal results.
+
 ## Network
 
 OpenClaw Gateway is fixed at Docker internal IP `172.30.30.10:18789`.
