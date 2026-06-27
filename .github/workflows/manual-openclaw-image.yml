@@ -105,7 +105,7 @@ jobs:
             OPENCLAW_INCLUDE_DOCS=${{ inputs.include_docs && '1' || '0' }}
             OPENCLAW_INCLUDE_QA=${{ inputs.include_qa && '1' || '0' }}
             OPENCLAW_INCLUDE_EXTENSION_SOURCES=${{ inputs.include_extension_sources && '1' || '0' }}
-          cache-from: type=gha
+          cache-from: type=gha,scope=manual-openclaw-slim-v2
 
       - name: Build and push skills/media runtime
         if: ${{ inputs.build_skills_image }}
@@ -121,4 +121,4 @@ jobs:
             ${{ inputs.image_name }}:${{ inputs.tag }}-${{ inputs.skills_tag_suffix }}-${{ github.sha }}
           build-args: |
             OPENCLAW_BASE_IMAGE=${{ inputs.image_name }}:${{ inputs.tag }}-${{ github.sha }}
-          cache-from: type=gha
+          cache-from: type=gha,scope=manual-openclaw-skills-v2
