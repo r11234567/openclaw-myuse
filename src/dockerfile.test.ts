@@ -8,17 +8,12 @@ import YAML from "yaml";
 
 const repoRoot = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
 const dockerfilePath = join(repoRoot, "Dockerfile");
-const manualDockerWorkflowPath = join(repoRoot, ".github/workflows/manual-openclaw-image.yml");
 const dockerReleaseWorkflowPath = join(repoRoot, ".github/workflows/docker-release.yml");
 const fullReleaseValidationWorkflowPath = join(
   repoRoot,
   ".github/workflows/full-release-validation.yml",
 );
-const dockerSetupDockerfilePaths = [
-  "Dockerfile",
-  "Dockerfile.skills",
-  "scripts/docker/sandbox/Dockerfile",
-] as const;
+const dockerSetupDockerfilePaths = ["Dockerfile", "scripts/docker/sandbox/Dockerfile"] as const;
 const pnpmWorkspacePath = join(repoRoot, "pnpm-workspace.yaml");
 
 function collapseDockerContinuations(dockerfile: string): string {
@@ -284,51 +279,6 @@ describe("Dockerfile", () => {
     expect(dockerfile).toContain(
       "COPY --from=runtime-assets --chown=node:node /app/patches ./patches",
     );
-  });
-
-  it("keeps optional runtime source assets enabled by default", async () => {
-    const dockerfile = await readFile(dockerfilePath, "utf8");
-
-    expect(dockerfile).toContain("ARG OPENCLAW_INCLUDE_DOCS=1");
-    expect(dockerfile).toContain("ARG OPENCLAW_INCLUDE_QA=1");
-    expect(dockerfile).toContain("ARG OPENCLAW_INCLUDE_EXTENSION_SOURCES=1");
-    expect(dockerfile).toContain(
-      "COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR} ./${OPENCLAW_BUNDLED_PLUGIN_DIR}",
-    );
-    expect(dockerfile).toContain("COPY --from=runtime-assets --chown=node:node /app/docs ./docs");
-    expect(dockerfile).toContain("COPY --from=runtime-assets --chown=node:node /app/qa ./qa");
-    expect(dockerfile).toContain('if [ "$OPENCLAW_INCLUDE_DOCS" = "0" ]; then');
-    expect(dockerfile).toContain('if [ "$OPENCLAW_INCLUDE_QA" = "0" ]; then');
-    expect(dockerfile).toContain('if [ "$OPENCLAW_INCLUDE_EXTENSION_SOURCES" = "0" ]; then');
-  });
-
-  it("provides a separate skills/media Dockerfile for heavy optional tools", async () => {
-    const dockerfile = await readFile(join(repoRoot, "Dockerfile.skills"), "utf8");
-
-    expect(dockerfile).toContain("ARG OPENCLAW_BASE_IMAGE=openclaw:local");
-    expect(dockerfile).toContain("FROM ${OPENCLAW_NODE_BOOKWORM_IMAGE} AS go-tools");
-    expect(dockerfile).toContain("FROM ${OPENCLAW_BASE_IMAGE}");
-    expect(dockerfile).toContain("ARG OPENCLAW_SKILLS_APT_PACKAGES=");
-    expect(dockerfile).toContain("ARG OPENCLAW_SKILLS_PIP_PACKAGES=");
-    expect(dockerfile).toContain("torch==2.9.1+cpu openai-whisper nano-pdf");
-    expect(dockerfile).toContain("COPY --from=go-tools /tmp/openclaw-skill-tools/bin/");
-    expect(dockerfile).toContain("go install github.com/steipete/gifgrep");
-    expect(dockerfile).not.toContain("/opt/openclaw-skill-tools/go");
-    expect(dockerfile).toContain("USER node");
-  });
-
-  it("keeps the manual GHCR runtime image slim while publishing optional skills tags", async () => {
-    const workflow = await readFile(manualDockerWorkflowPath, "utf8");
-
-    expect(workflow).toContain("Build and push slim runtime");
-    expect(workflow).toContain("Build and push skills/media runtime");
-    expect(workflow).toContain("file: Dockerfile.skills");
-    expect(workflow).toContain("OPENCLAW_BASE_IMAGE=${{ inputs.image_name }}:${{ inputs.tag }}-${{ github.sha }}");
-    expect(workflow).toContain("${{ inputs.image_name }}:${{ inputs.tag }}-${{ inputs.skills_tag_suffix }}");
-    expect(workflow).toContain("apt_packages:");
-    expect(workflow).toContain('default: ""');
-    expect(workflow).not.toContain("torch==2.9.1+cpu openai-whisper nano-pdf");
-    expect(workflow).not.toContain("ffmpeg jq ripgrep python3-pip tesseract-ocr poppler-utils");
   });
 
   it("keeps runtime workspace templates in final images", async () => {

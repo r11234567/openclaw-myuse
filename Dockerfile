@@ -162,9 +162,6 @@ LABEL org.opencontainers.image.base.name="docker.io/library/node:24-bookworm-sli
 # ── Stage 3: Runtime ────────────────────────────────────────────
 FROM base-runtime
 ARG OPENCLAW_BUNDLED_PLUGIN_DIR
-ARG OPENCLAW_INCLUDE_DOCS=1
-ARG OPENCLAW_INCLUDE_QA=1
-ARG OPENCLAW_INCLUDE_EXTENSION_SOURCES=1
 
 # OCI base-image metadata for downstream image consumers.
 # If you change these annotations, also update:
@@ -204,15 +201,6 @@ COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR}
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
 COPY --from=runtime-assets --chown=node:node /app/qa ./qa
-RUN if [ "$OPENCLAW_INCLUDE_EXTENSION_SOURCES" = "0" ]; then \
-      find "./${OPENCLAW_BUNDLED_PLUGIN_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +; \
-    fi && \
-    if [ "$OPENCLAW_INCLUDE_DOCS" = "0" ]; then \
-      find ./docs -mindepth 1 -maxdepth 1 -exec rm -rf {} +; \
-    fi && \
-    if [ "$OPENCLAW_INCLUDE_QA" = "0" ]; then \
-      find ./qa -mindepth 1 -maxdepth 1 -exec rm -rf {} +; \
-    fi
 
 # Keep pnpm available in the runtime image for container-local workflows.
 # Use a shared Corepack home so the non-root `node` user does not need a
