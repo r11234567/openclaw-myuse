@@ -70,10 +70,23 @@ COPY --from=workspace-deps /out/${OPENCLAW_BUNDLED_PLUGIN_DIR}/ ./${OPENCLAW_BUN
 # Reduce OOM risk on low-memory hosts during dependency installation.
 # Docker builds on small VMs may otherwise fail with "Killed" (exit 137).
 RUN --mount=type=cache,id=openclaw-pnpm-store,target=/root/.local/share/pnpm/store,sharing=locked \
-    NODE_OPTIONS=--max-old-space-size=2048 pnpm install --frozen-lockfile \
+    set -eux; \
+    install_args="--frozen-lockfile \
       --config.supportedArchitectures.os=linux \
-      --config.supportedArchitectures.cpu="$(node -p 'process.arch')" \
-      --config.supportedArchitectures.libc=glibc
+      --config.supportedArchitectures.cpu=$(node -p 'process.arch') \
+      --config.supportedArchitectures.libc=glibc"; \
+    if NODE_OPTIONS=--max-old-space-size=2048 pnpm install $install_args > /tmp/openclaw-pnpm-install.log 2>&1; then \
+      cat /tmp/openclaw-pnpm-install.log; \
+    else \
+      cat /tmp/openclaw-pnpm-install.log; \
+      if grep -q "ERR_PNPM_TARBALL_INTEGRITY" /tmp/openclaw-pnpm-install.log; then \
+        pnpm store prune; \
+        NODE_OPTIONS=--max-old-space-size=2048 pnpm install $install_args; \
+      else \
+        exit 1; \
+      fi; \
+    fi; \
+    rm -f /tmp/openclaw-pnpm-install.log
 
 # pnpm v10+ may append peer-resolution hashes to virtual-store folder names; do not hardcode `.pnpm/...`
 # paths. Matrix's native downloader can hit transient release CDN errors while
