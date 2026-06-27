@@ -204,6 +204,8 @@ COPY --from=runtime-assets --chown=node:node /app/${OPENCLAW_BUNDLED_PLUGIN_DIR}
 COPY --from=runtime-assets --chown=node:node /app/skills ./skills
 COPY --from=runtime-assets --chown=node:node /app/docs ./docs
 COPY --from=runtime-assets --chown=node:node /app/qa ./qa
+# Keep source/docs/QA assets by default so the slim runtime keeps the same
+# behavior as the pre-slim image. Set these args to 0 only for a stricter image.
 RUN if [ "$OPENCLAW_INCLUDE_EXTENSION_SOURCES" = "0" ]; then \
       find "./${OPENCLAW_BUNDLED_PLUGIN_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +; \
     fi && \

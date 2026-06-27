@@ -557,33 +557,6 @@ See [ClawDock](/install/clawdock) for the full helper guide.
        `OPENCLAW_EXTRA_MOUNTS`. OpenClaw auto-detects the Docker image's
        Playwright-managed Chromium on Linux.
 
-    Keep heavy media and skill dependencies out of the primary gateway image
-    unless every deployment needs them. Python ML stacks such as PyTorch and
-    Whisper, OCR/PDF tooling, TTS runtimes, and Go-built helper tools can add
-    multiple gigabytes. For that use case, build a separate skills/media image
-    from the already-built gateway image:
-
-    ```bash
-    docker build \
-      --build-arg OPENCLAW_BASE_IMAGE=ghcr.io/openclaw/openclaw:latest \
-      -t openclaw:skills \
-      -f Dockerfile.skills .
-    ```
-
-    Then opt in by setting `OPENCLAW_IMAGE=openclaw:skills` for deployments that
-    actually need those tools. This keeps the default gateway image small while
-    preserving the same runtime behavior for media-heavy skill hosts.
-
-    `docker system df` reports BuildKit cache separately from images. A skills
-    image build can leave several gigabytes of non-reclaimable-looking build
-    cache while the builder still references it; that cache is not pulled from
-    GHCR and is not created by merely enabling skills. If you do not plan to
-    rebuild the derived image soon, clear it with:
-
-    ```bash
-    docker builder prune -af
-    ```
-
   </Accordion>
 
   <Accordion title="OpenAI Codex OAuth (headless Docker)">
