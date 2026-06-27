@@ -39,6 +39,13 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
+## Deployment Summary
+
+- This setup keeps rebuild-safe skill/tool state in `state/skills/` and `state/tools/`.
+- The deployed image is pulled from GHCR, then `docker compose up -d --force-recreate` switches the stack to that tag.
+- If startup fails after a restart, check `config.d/*.json5` for stale config keys before blaming the image.
+- To add skills later, put persistent skill files under `state/skills/` or install them into the managed OpenClaw skill root; do not rely on a one-off container build layer.
+
 ## Network
 
 OpenClaw Gateway is fixed at Docker internal IP `172.30.30.10:18789`.
