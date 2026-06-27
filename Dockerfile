@@ -245,67 +245,6 @@ RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,shar
       python3 -m pip install --no-cache-dir --break-system-packages $OPENCLAW_IMAGE_PIP_PACKAGES; \
     fi
 
-# Install additional npm packages needed by bundled skills.
-# Example: docker build --build-arg OPENCLAW_IMAGE_NPM_PACKAGES="@steipete/oracle mcporter" .
-ARG OPENCLAW_IMAGE_NPM_PACKAGES=""
-RUN if [ -n "$OPENCLAW_IMAGE_NPM_PACKAGES" ]; then \
-      npm install -g $OPENCLAW_IMAGE_NPM_PACKAGES; \
-    fi
-
-# Install additional Go CLI tools needed by bundled skills.
-# Example: docker build --build-arg OPENCLAW_IMAGE_GO_PACKAGES="github.com/steipete/gifgrep/cmd/gifgrep@latest" .
-ARG TARGETARCH
-ARG OPENCLAW_IMAGE_GO_VERSION="1.25.5"
-ARG OPENCLAW_IMAGE_GO_PACKAGES=""
-RUN --mount=type=cache,id=openclaw-bookworm-apt-cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,id=openclaw-bookworm-apt-lists,target=/var/lib/apt,sharing=locked \
-    --mount=type=cache,id=openclaw-go-mod-cache,target=/root/go/pkg/mod,sharing=locked \
-    --mount=type=cache,id=openclaw-go-build-cache,target=/root/.cache/go-build,sharing=locked \
-    if [ -n "$OPENCLAW_IMAGE_GO_PACKAGES" ]; then \
-      case "${TARGETARCH:-amd64}" in \
-        amd64) go_asset="go${OPENCLAW_IMAGE_GO_VERSION}.linux-amd64.tar.gz" ;; \
-        arm64) go_asset="go${OPENCLAW_IMAGE_GO_VERSION}.linux-arm64.tar.gz" ;; \
-        *) echo "unsupported Go install architecture: TARGETARCH=${TARGETARCH:-unknown}" >&2; exit 1 ;; \
-      esac && \
-      if [ ! -x /opt/openclaw-go/bin/go ]; then \
-        if ! command -v tar >/dev/null 2>&1; then \
-          apt-get update && \
-          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends tar; \
-        fi && \
-        curl -fsSLo /tmp/openclaw-go.tar.gz "https://go.dev/dl/${go_asset}" && \
-        rm -rf /opt/openclaw-go && \
-        mkdir -p /opt/openclaw-go && \
-        tar -xzf /tmp/openclaw-go.tar.gz -C /opt/openclaw-go --strip-components=1 && \
-        rm -f /tmp/openclaw-go.tar.gz; \
-      fi && \
-      for package in $OPENCLAW_IMAGE_GO_PACKAGES; do \
-        GOBIN=/usr/local/bin /opt/openclaw-go/bin/go install "$package"; \
-      done; \
-    fi
-
-# Optionally install sherpa-onnx TTS runtime and a default voice model.
-ARG OPENCLAW_INSTALL_SHERPA_ONNX_TTS=""
-ARG OPENCLAW_SHERPA_ONNX_VERSION="1.13.2"
-ENV SHERPA_ONNX_RUNTIME_DIR=/opt/openclaw-skill-tools/sherpa-onnx-tts/runtime
-ENV SHERPA_ONNX_MODEL_DIR=/opt/openclaw-skill-tools/sherpa-onnx-tts/models/vits-piper-en_US-lessac-high
-RUN if [ -n "$OPENCLAW_INSTALL_SHERPA_ONNX_TTS" ]; then \
-      if ! command -v bzip2 >/dev/null 2>&1; then \
-        apt-get update && \
-        DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends bzip2; \
-      fi && \
-      case "${TARGETARCH:-amd64}" in \
-        amd64) sherpa_asset="sherpa-onnx-v${OPENCLAW_SHERPA_ONNX_VERSION}-linux-x64-shared.tar.bz2" ;; \
-        *) echo "sherpa-onnx TTS runtime install is only configured for linux/amd64; got TARGETARCH=${TARGETARCH:-unknown}" >&2; exit 1 ;; \
-      esac && \
-      mkdir -p "$SHERPA_ONNX_RUNTIME_DIR" /opt/openclaw-skill-tools/sherpa-onnx-tts/models && \
-      curl -fsSLo /tmp/sherpa-runtime.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/v${OPENCLAW_SHERPA_ONNX_VERSION}/${sherpa_asset}" && \
-      tar -xjf /tmp/sherpa-runtime.tar.bz2 -C "$SHERPA_ONNX_RUNTIME_DIR" --strip-components=1 && \
-      curl -fsSLo /tmp/sherpa-lessac.tar.bz2 "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-en_US-lessac-high.tar.bz2" && \
-      tar -xjf /tmp/sherpa-lessac.tar.bz2 -C /opt/openclaw-skill-tools/sherpa-onnx-tts/models && \
-      rm -f /tmp/sherpa-runtime.tar.bz2 /tmp/sherpa-lessac.tar.bz2 && \
-      chown -R node:node /opt/openclaw-skill-tools; \
-    fi
-
 # Optionally install Chromium and Xvfb for browser automation.
 # Build with: docker build --build-arg OPENCLAW_INSTALL_BROWSER=1 ...
 # Adds ~300MB but eliminates the 60-90s Playwright install on every container start.
