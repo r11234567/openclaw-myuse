@@ -531,6 +531,16 @@ PY
   });
 
   describe("GFM features", () => {
+    it("renders inline code as copyable code text", () => {
+      const html = toSanitizedMarkdownHtml("Use `gxkw3` for this session.");
+      const fragment = htmlFragment(html);
+      const code = fragment.querySelector<HTMLElement>("code.inline-code-copy");
+
+      expect(code?.textContent).toBe("gxkw3");
+      expect(code?.dataset.code).toBe("gxkw3");
+      expect(fragment.querySelector("button")).toBeNull();
+    });
+
     it("renders strikethrough", () => {
       const html = toSanitizedMarkdownHtml("This is ~~deleted~~ text");
       expect(html).toBe("<p>This is <s>deleted</s> text</p>\n");
@@ -765,24 +775,29 @@ describe("toStreamingMarkdownHtml", () => {
     );
   });
 
-  it("keeps a single open paragraph as escaped text", () => {
+  it("renders a single open paragraph while streaming", () => {
     const html = toStreamingMarkdownHtml("**still streaming");
 
-    expect(html).toBe('<div class="markdown-plain-text-fallback">**still streaming</div>');
+    expect(html).toBe("<p>**still streaming</p>\n");
   });
 
-  it("does not invoke the markdown parser before a stable block boundary exists", () => {
+  it("renders a single streaming paragraph through the markdown pipeline", () => {
     const renderSpy = vi.spyOn(md, "render");
     try {
       const html = toStreamingMarkdownHtml("**still streaming parser sentinel");
 
-      expect(html).toBe(
-        '<div class="markdown-plain-text-fallback">**still streaming parser sentinel</div>',
-      );
-      expect(renderSpy).not.toHaveBeenCalled();
+      expect(html).toBe("<p>**still streaming parser sentinel</p>\n");
+      expect(renderSpy).toHaveBeenCalledOnce();
     } finally {
       renderSpy.mockRestore();
     }
+  });
+
+  it("renders single-line streaming LaTeX with KaTeX", () => {
+    const html = toStreamingMarkdownHtml("Inline $x^2$");
+
+    expect(html).toContain('<span class="katex">');
+    expect(html).not.toContain("$x^2$");
   });
 
   it("reuses the rendered stable prefix while only the streaming tail changes", () => {
@@ -805,6 +820,20 @@ describe("toStreamingMarkdownHtml", () => {
     expect(html).toBe(
       '<p>Intro</p>\n<div class="markdown-plain-text-fallback">```ts\nconst x = 1 &lt; 2</div>',
     );
+  });
+
+  it("does not parse an open code fence before a stable block boundary exists", () => {
+    const renderSpy = vi.spyOn(md, "render");
+    try {
+      const html = toStreamingMarkdownHtml("```ts\nconst x = 1 < 2");
+
+      expect(html).toBe(
+        '<div class="markdown-plain-text-fallback">```ts\nconst x = 1 &lt; 2</div>',
+      );
+      expect(renderSpy).not.toHaveBeenCalled();
+    } finally {
+      renderSpy.mockRestore();
+    }
   });
 
   it("keeps an open list code fence streaming through blank lines", () => {

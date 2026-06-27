@@ -2076,17 +2076,18 @@ export function renderChat(props: ChatProps) {
   const historyRenderLimit = resolveChatHistoryRenderWindow(props);
 
   const handleCodeBlockCopy = (e: Event) => {
-    const btn = (e.target as HTMLElement).closest(".code-block-copy");
-    if (!btn) {
+    const target = e.target as HTMLElement;
+    const copyTarget = target.closest(".code-block-copy, .inline-code-copy");
+    if (!copyTarget) {
       return;
     }
-    const code = (btn as HTMLElement).dataset.code ?? "";
+    const code = (copyTarget as HTMLElement).dataset.code ?? "";
     void copyToClipboard(code).then((copied) => {
       if (!copied) {
         return;
       }
-      btn.classList.add("copied");
-      setTimeout(() => btn.classList.remove("copied"), 1500);
+      copyTarget.classList.add("copied");
+      setTimeout(() => copyTarget.classList.remove("copied"), 1500);
     });
   };
   const handleChatThreadScroll = (event: Event) => {

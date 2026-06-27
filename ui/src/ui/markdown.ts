@@ -656,6 +656,33 @@ function findStableStreamingMarkdownBoundary(markdownLocal: string): number {
   return boundary;
 }
 
+function hasOpenStreamingCodeFence(markdownLocal: string): boolean {
+  let index = 0;
+  let openFence: { marker: "`" | "~"; length: number } | null = null;
+
+  while (index < markdownLocal.length) {
+    const nextLineBreak = markdownLocal.indexOf("\n", index);
+    const lineEnd = nextLineBreak === -1 ? markdownLocal.length : nextLineBreak + 1;
+    const line = markdownLocal.slice(index, nextLineBreak === -1 ? lineEnd : nextLineBreak);
+
+    if (openFence) {
+      if (isFenceClose(line, openFence)) {
+        openFence = null;
+      }
+      index = lineEnd;
+      continue;
+    }
+
+    const openingFence = getFenceMarker(line);
+    if (openingFence) {
+      openFence = openingFence;
+    }
+    index = lineEnd;
+  }
+
+  return openFence !== null;
+}
+
 for (const [language, definition, aliases] of [
   ["bash", bash, ["sh", "shell"]],
   ["cpp", cpp, ["c++", "cxx"]],
@@ -1076,6 +1103,12 @@ md.renderer.rules.code_block = (tokens, idx, _options, env) => {
   return `<div class="code-block-wrapper">${header}${codeBlock}</div>`;
 };
 
+md.renderer.rules.code_inline = (tokens, idx) => {
+  const text = tokens[idx]?.content ?? "";
+  const escaped = escapeHtml(text);
+  return `<code class="inline-code-copy" data-code="${escaped}" title="${escapeHtml(t("common.copyCode"))}">${escaped}</code>`;
+};
+
 export function toSanitizedMarkdownHtml(
   markdownLocal: string,
   options: MarkdownRenderOptions = {},
@@ -1147,7 +1180,10 @@ export function toStreamingMarkdownHtml(
 
   const boundary = findStableStreamingMarkdownBoundary(input);
   if (boundary <= 0) {
-    return toEscapedPlainTextHtml(input);
+    if (hasOpenStreamingCodeFence(input)) {
+      return toEscapedPlainTextHtml(input);
+    }
+    return toSanitizedMarkdownHtml(input, options);
   }
 
   const stableMarkdown = input.slice(0, boundary);

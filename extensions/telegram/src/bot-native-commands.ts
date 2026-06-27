@@ -37,8 +37,8 @@ import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
 import { getRuntimeConfigSnapshot } from "openclaw/plugin-sdk/runtime-config-snapshot";
 import { danger, logVerbose } from "openclaw/plugin-sdk/runtime-env";
 import { getChildLogger } from "openclaw/plugin-sdk/runtime-env";
-import { getSessionBindingService } from "openclaw/plugin-sdk/session-binding-runtime";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
+import { getSessionBindingService } from "openclaw/plugin-sdk/session-binding-runtime";
 import {
   getSessionEntry,
   deleteSessionEntryLifecycle,
@@ -102,6 +102,7 @@ import {
 } from "./conversation-route.js";
 import { shouldSuppressLocalTelegramExecApprovalPrompt } from "./exec-approvals.js";
 import type { TelegramTransport } from "./fetch.js";
+import { escapeTelegramHtml } from "./format.js";
 import {
   evaluateTelegramGroupBaseAccess,
   evaluateTelegramGroupPolicyAccess,
@@ -202,8 +203,8 @@ function hasTelegramSessionConversationContent(entry: SessionEntry | undefined):
   }
   return Boolean(
     normalizeOptionalString(entry.displayName) ||
-      normalizeOptionalString(entry.subject) ||
-      normalizeOptionalString(entry.label),
+    normalizeOptionalString(entry.subject) ||
+    normalizeOptionalString(entry.label),
   );
 }
 
@@ -330,6 +331,10 @@ async function sendTelegramThreadMessage(params: {
   });
 }
 
+function formatTelegramSessionCode(code: string): string {
+  return `<code>${escapeTelegramHtml(code)}</code>`;
+}
+
 function formatTelegramSessionUpdatedAt(value: number | undefined): string {
   if (!value || !Number.isFinite(value)) {
     return "unknown time";
@@ -393,17 +398,13 @@ async function buildTelegramSessionsList(params: {
         : isTelegramLifecycleArchivedSession(entry)
           ? "归档"
           : "可用";
-    return `${code}  ${formatTelegramSessionUpdatedAt(entry.updatedAt)}  ${status}  ${title}`;
+    return `${formatTelegramSessionCode(code)}  ${formatTelegramSessionUpdatedAt(entry.updatedAt)}  ${status}  ${escapeTelegramHtml(title)}`;
   });
   const buttons: TelegramInlineButtons = pageSessions
     .map(({ entry }) => {
       const code = normalizeTelegramSessionShortCode(entry.sessionShortCode);
       return code
         ? [
-            {
-              text: `复制 ${code}`,
-              copy_text: { text: code },
-            },
             {
               text: `切换 ${code}`,
               callback_data: buildTelegramNativeCommandCallbackData(`/switch ${code}`),
@@ -435,9 +436,9 @@ async function buildTelegramSessionsList(params: {
   return {
     buttons,
     text: [
-    "Sessions:",
-    ...lines,
-    "",
+      "Sessions:",
+      ...lines,
+      "",
       "Use /switch <code> to continue a session here. Manage with /rename, /cold, /delete.",
     ].join("\n"),
   };
@@ -1519,16 +1520,13 @@ export const registerTelegramNativeCommands = ({
         operation: "sendMessage",
         runtime,
         fn: () =>
-          bot.api.sendMessage(
-            commandContext.runtimeContext.chatId,
-            list.text,
-            {
-              ...(buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {}),
-              ...(list.buttons && list.buttons.length > 0
-                ? { reply_markup: buildInlineKeyboard(list.buttons) }
-                : {}),
-            },
-          ),
+          bot.api.sendMessage(commandContext.runtimeContext.chatId, list.text, {
+            ...(buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {}),
+            parse_mode: "HTML",
+            ...(list.buttons && list.buttons.length > 0
+              ? { reply_markup: buildInlineKeyboard(list.buttons) }
+              : {}),
+          }),
       });
     });
 
@@ -1557,16 +1555,10 @@ export const registerTelegramNativeCommands = ({
         fn: () =>
           bot.api.sendMessage(
             commandContext.runtimeContext.chatId,
-            `Current session: ${code}\n${title}`,
+            `Current session: ${formatTelegramSessionCode(code)}\n${escapeTelegramHtml(title)}`,
             {
               ...(buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {}),
-              ...(code !== "none"
-                ? {
-                    reply_markup: buildInlineKeyboard([
-                      [{ text: `复制 ${code}`, copy_text: { text: code } }],
-                    ]),
-                  }
-                : {}),
+              parse_mode: "HTML",
             },
           ),
       });

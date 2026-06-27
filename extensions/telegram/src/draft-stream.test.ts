@@ -690,6 +690,21 @@ describe("createTelegramDraftStream", () => {
     expect(api.editMessageText).not.toHaveBeenCalled();
   });
 
+  it("renders draft stream dollar LaTeX as official rich math tags", async () => {
+    const api = createMockDraftApi();
+    const stream = createDraftStream(api, { richMessages: true });
+
+    stream.update("Inline $x^2$ and $$\\frac{1}{2}$$");
+    await stream.flush();
+
+    expect(api.raw.sendRichMessage).toHaveBeenCalledWith({
+      chat_id: 123,
+      rich_message: {
+        html: "Inline <tg-math>x^2</tg-math> and <tg-math-block>\\frac{1}{2}</tg-math-block>",
+      },
+    });
+  });
+
   it("skips rich entity detection for draft text with provider-prefixed email addresses", async () => {
     const api = createMockDraftApi();
     const stream = createDraftStream(api, { richMessages: true });

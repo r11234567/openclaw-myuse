@@ -89,6 +89,18 @@ describe("markdownToTelegramHtml", () => {
     expect(markdownToTelegramRichHtml("<sup>1</sup>")).toBe("<sup>1</sup>");
   });
 
+  it("renders dollar-delimited LaTeX as official Telegram rich math tags", () => {
+    expect(markdownToTelegramRichHtml("Inline $x^2$ and $$\\frac{1}{2}$$")).toBe(
+      "Inline <tg-math>x^2</tg-math> and <tg-math-block>\\frac{1}{2}</tg-math-block>",
+    );
+  });
+
+  it("does not render dollar math inside code or links", () => {
+    expect(markdownToTelegramRichHtml("`$x^2$` [cost $5$](https://example.com)")).toBe(
+      '<code>$x^2$</code> <a href="https://example.com">cost $5$</a>',
+    );
+  });
+
   it("materializes inline and paragraph newlines as <br> for rich messages", () => {
     // The exact reported symptom: literal "• " bullets (not Markdown list markers)
     // joined by soft breaks, which Bot API 10.1 rich messages collapse without <br>.

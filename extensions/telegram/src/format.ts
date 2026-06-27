@@ -211,6 +211,8 @@ const TELEGRAM_MARKDOWN_INLINE_IMAGE_PATTERN = /!\[([^\]\n]*)\]\(([^)\n]+)\)/g;
 const TELEGRAM_MARKDOWN_REFERENCE_IMAGE_PATTERN = /!\[([^\]\n]*)\]\[([^\]\n]+)\]/g;
 const TELEGRAM_MARKDOWN_MEDIA_PLACEHOLDER_PREFIX = "\uE000telegram-media:";
 const TELEGRAM_MARKDOWN_MEDIA_PLACEHOLDER_SUFFIX = "\uE001";
+const TELEGRAM_RICH_DOLLAR_MATH_PATTERN = /\$\$([\s\S]+?)\$\$|\$([^\s$](?:[^$]*?[^\s\\$])?)\$/g;
+const TELEGRAM_RICH_DOLLAR_MATH_LITERAL_TAGS = new Set(["code", "pre", "tg-math", "tg-math-block"]);
 const TELEGRAM_SIMPLE_HTML_TAGS = new Set([
   "b",
   "strong",
@@ -386,6 +388,57 @@ function isSupportedTelegramHtmlTag(rawTag: string, support: TelegramHtmlTagSupp
     return true;
   }
   return support.simpleTags.has(name) && attrs.trim() === "";
+}
+
+function escapeTelegramMathSource(source: string): string {
+  return escapeHtml(source);
+}
+
+function renderTelegramRichDollarMathSegment(segment: string): string {
+  return segment.replace(
+    TELEGRAM_RICH_DOLLAR_MATH_PATTERN,
+    (match: string, blockSource: string | undefined, inlineSource: string | undefined) => {
+      if (match.startsWith("$$")) {
+        const source = blockSource?.trim();
+        return source
+          ? `<tg-math-block>${escapeTelegramMathSource(source)}</tg-math-block>`
+          : match;
+      }
+      const source = inlineSource?.trim();
+      return source ? `<tg-math>${escapeTelegramMathSource(source)}</tg-math>` : match;
+    },
+  );
+}
+
+function renderTelegramRichDollarMath(html: string): string {
+  if (!html.includes("$")) {
+    return html;
+  }
+  let result = "";
+  let lastIndex = 0;
+  let literalDepth = 0;
+  let anchorDepth = 0;
+  HTML_TAG_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+  while ((match = HTML_TAG_PATTERN.exec(html)) !== null) {
+    const tagStart = match.index;
+    const rawTag = match[0];
+    const isClosing = match[1] === "</";
+    const tagName = normalizeLowercaseStringOrEmpty(match[2]);
+    const segment = html.slice(lastIndex, tagStart);
+    result +=
+      literalDepth > 0 || anchorDepth > 0 ? segment : renderTelegramRichDollarMathSegment(segment);
+    if (TELEGRAM_RICH_DOLLAR_MATH_LITERAL_TAGS.has(tagName)) {
+      literalDepth = isClosing ? Math.max(0, literalDepth - 1) : literalDepth + 1;
+    } else if (tagName === "a") {
+      anchorDepth = isClosing ? Math.max(0, anchorDepth - 1) : anchorDepth + 1;
+    }
+    result += rawTag;
+    lastIndex = HTML_TAG_PATTERN.lastIndex;
+  }
+  const tail = html.slice(lastIndex);
+  result += literalDepth > 0 || anchorDepth > 0 ? tail : renderTelegramRichDollarMathSegment(tail);
+  return result;
 }
 
 function hasOpenTelegramHtmlTag(tags: readonly string[], name: string): boolean {
@@ -1137,9 +1190,11 @@ export function markdownToTelegramRichHtml(
     },
   );
   return isolateTelegramRichMediaBlocks(
-    replaceTelegramRichMarkdownMediaPlaceholders(
-      renderTelegramRichHtmlDocument(ir, tables),
-      normalized.mediaBlocks,
+    renderTelegramRichDollarMath(
+      replaceTelegramRichMarkdownMediaPlaceholders(
+        renderTelegramRichHtmlDocument(ir, tables),
+        normalized.mediaBlocks,
+      ),
     ),
   );
 }
