@@ -37,9 +37,11 @@ import { resolveAgentRoute } from "openclaw/plugin-sdk/routing";
 import { getRuntimeConfigSnapshot } from "openclaw/plugin-sdk/runtime-config-snapshot";
 import { danger, logVerbose } from "openclaw/plugin-sdk/runtime-env";
 import { getChildLogger } from "openclaw/plugin-sdk/runtime-env";
+import { getSessionBindingService } from "openclaw/plugin-sdk/session-binding-runtime";
 import type { RuntimeEnv } from "openclaw/plugin-sdk/runtime-env";
 import {
   getSessionEntry,
+  listSessionEntries,
   resolveStorePath,
   type SessionEntry,
 } from "openclaw/plugin-sdk/session-store-runtime";
@@ -111,6 +113,12 @@ export {
 } from "./native-command-callback-data.js";
 
 const EMPTY_RESPONSE_FALLBACK = "No response generated. Please try again.";
+const TELEGRAM_SESSION_LIST_LIMIT = 12;
+const TELEGRAM_SESSION_MANAGEMENT_COMMANDS: TelegramMenuCommand[] = [
+  { command: "sessions", description: "List shared sessions" },
+  { command: "switch", description: "Switch to a shared session" },
+  { command: "current", description: "Show the current session" },
+];
 
 type TelegramNativeCommandContext = Context & { match?: string };
 type TelegramChunkMode = ReturnType<
@@ -148,6 +156,85 @@ type TelegramNativeCommandThreadContext = {
   threadSpec: ReturnType<typeof resolveTelegramThreadSpec>;
   threadParams: ReturnType<typeof buildTelegramThreadParams>;
 };
+
+type TelegramSessionListItem = {
+  entry: SessionEntry;
+  sessionKey: string;
+};
+
+function normalizeTelegramSessionShortCode(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim().toLowerCase();
+  return /^[a-z0-9]{5}$/.test(normalized) ? normalized : undefined;
+}
+
+function isTelegramLifecycleArchivedSession(entry: SessionEntry | undefined): boolean {
+  return entry?.lifecycleState === "archived";
+}
+
+function resolveTelegramSessionTitle(entry: SessionEntry, sessionKey: string): string {
+  return (
+    normalizeOptionalString(entry.displayName) ??
+    normalizeOptionalString(entry.subject) ??
+    normalizeOptionalString(entry.label) ??
+    sessionKey
+  );
+}
+
+function listTelegramSharedSessions(params: {
+  agentId: string;
+  includeArchived?: boolean;
+}): TelegramSessionListItem[] {
+  return listSessionEntries({ agentId: params.agentId })
+    .filter(
+      ({ entry }) => params.includeArchived === true || !isTelegramLifecycleArchivedSession(entry),
+    )
+    .filter(({ entry }) => Boolean(normalizeTelegramSessionShortCode(entry.sessionShortCode)))
+    .toSorted((a, b) => (b.entry.updatedAt ?? 0) - (a.entry.updatedAt ?? 0));
+}
+
+function findTelegramSessionByShortCode(params: {
+  agentId: string;
+  shortCode: string;
+}): TelegramSessionListItem | null {
+  const shortCode = normalizeTelegramSessionShortCode(params.shortCode);
+  if (!shortCode) {
+    return null;
+  }
+  return (
+    listSessionEntries({ agentId: params.agentId }).find(
+      ({ entry }) => normalizeTelegramSessionShortCode(entry.sessionShortCode) === shortCode,
+    ) ?? null
+  );
+}
+
+function formatTelegramSessionsList(params: {
+  agentId: string;
+  activeSessionKey?: string;
+  includeArchived?: boolean;
+}): string {
+  const sessions = listTelegramSharedSessions({
+    agentId: params.agentId,
+    includeArchived: params.includeArchived,
+  }).slice(0, TELEGRAM_SESSION_LIST_LIMIT);
+  if (sessions.length === 0) {
+    return "No shared sessions found yet.";
+  }
+  const lines = sessions.map(({ sessionKey, entry }) => {
+    const code = normalizeTelegramSessionShortCode(entry.sessionShortCode) ?? "-----";
+    const archived = isTelegramLifecycleArchivedSession(entry) ? " archived" : "";
+    const active = sessionKey === params.activeSessionKey ? " current" : "";
+    return `${code} - ${resolveTelegramSessionTitle(entry, sessionKey)}${archived}${active}`;
+  });
+  return [
+    "Sessions:",
+    ...lines,
+    "",
+    "Use /switch <code> to continue a session here.",
+  ].join("\n");
+}
 
 function buildTelegramCommandMenuModelContext(params: {
   provider: string;
@@ -873,7 +960,10 @@ export const registerTelegramNativeCommands = ({
         })
       : [];
     const reservedCommands = new Set(
-      listNativeCommandSpecs().map((command) => normalizeTelegramCommandName(command.name)),
+      [
+        ...listNativeCommandSpecs().map((command) => normalizeTelegramCommandName(command.name)),
+        ...TELEGRAM_SESSION_MANAGEMENT_COMMANDS.map((command) => command.command),
+      ].map((command) => normalizeLowercaseStringOrEmpty(command)),
     );
     for (const command of reservedSkillCommands) {
       reservedCommands.add(normalizeLowercaseStringOrEmpty(command.name));
@@ -903,6 +993,7 @@ export const registerTelegramNativeCommands = ({
       runtime.error?.(danger(issue));
     }
     const allCommandsFull: TelegramMenuCommand[] = [
+      ...(nativeEnabled ? TELEGRAM_SESSION_MANAGEMENT_COMMANDS : []),
       ...nativeCommands
         .map((command): TelegramMenuCommand | null => {
           const normalized = normalizeTelegramCommandName(command.name);
@@ -1145,6 +1236,174 @@ export const registerTelegramNativeCommands = ({
         : null;
     return threadKeys?.sessionKey ?? baseSessionKey;
   };
+
+  const resolveSharedSessionCommandContext = async (ctx: TelegramNativeCommandContext) => {
+    const msg = ctx.message;
+    if (!msg || shouldSkipUpdate(ctx)) {
+      return null;
+    }
+    const runtimeCfg = loadFreshRuntimeConfig();
+    const runtimeTelegramCfg = resolveFreshTelegramConfig(runtimeCfg);
+    const auth = await resolveTelegramCommandAuth({
+      msg,
+      bot,
+      cfg: runtimeCfg,
+      accountId,
+      telegramCfg: runtimeTelegramCfg,
+      readChannelAllowFromStore: telegramDeps.readChannelAllowFromStore,
+      allowFrom,
+      groupAllowFrom,
+      useAccessGroups,
+      resolveGroupPolicy,
+      resolveTelegramGroupConfig,
+      requireAuth: true,
+    });
+    if (!auth) {
+      return null;
+    }
+    const runtimeContext = await resolveCommandRuntimeContext({
+      msg,
+      runtimeCfg,
+      isGroup: auth.isGroup,
+      isForum: auth.isForum,
+      resolvedThreadId: auth.resolvedThreadId,
+      senderId: auth.senderId,
+      topicAgentId: auth.topicConfig?.agentId,
+    });
+    if (!runtimeContext) {
+      return null;
+    }
+    const currentSessionKey = resolveCommandTargetSessionKey({
+      runtimeCfg,
+      route: runtimeContext.route,
+      chatId: runtimeContext.chatId,
+      isGroup: auth.isGroup,
+      senderId: auth.senderId,
+      threadSpec: runtimeContext.threadSpec,
+      botHasTopicsEnabled: resolveTelegramBotHasTopicsEnabled(ctx.me),
+      resolveThreadSessionKeys: (await loadTelegramNativeCommandRuntime()).resolveThreadSessionKeys,
+    });
+    const conversationId =
+      runtimeContext.threadSpec.id != null
+        ? `${runtimeContext.chatId}:topic:${runtimeContext.threadSpec.id}`
+        : String(runtimeContext.chatId);
+    return {
+      currentSessionKey,
+      conversationId,
+      runtimeContext,
+    };
+  };
+
+  if (nativeEnabled) {
+    bot.command("sessions", async (ctx: TelegramNativeCommandContext) => {
+      const commandContext = await resolveSharedSessionCommandContext(ctx);
+      if (!commandContext) {
+        return;
+      }
+      const includeArchived = ctx.match?.trim().toLowerCase() !== "active";
+      await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        runtime,
+        fn: () =>
+          bot.api.sendMessage(
+            commandContext.runtimeContext.chatId,
+            formatTelegramSessionsList({
+              agentId: commandContext.runtimeContext.route.agentId,
+              activeSessionKey: commandContext.currentSessionKey,
+              includeArchived,
+            }),
+            buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {},
+          ),
+      });
+    });
+
+    bot.command("current", async (ctx: TelegramNativeCommandContext) => {
+      const commandContext = await resolveSharedSessionCommandContext(ctx);
+      if (!commandContext) {
+        return;
+      }
+      const entry = getSessionEntry({
+        agentId: commandContext.runtimeContext.route.agentId,
+        sessionKey: commandContext.currentSessionKey,
+      });
+      const code = normalizeTelegramSessionShortCode(entry?.sessionShortCode) ?? "none";
+      const title = entry
+        ? resolveTelegramSessionTitle(entry, commandContext.currentSessionKey)
+        : commandContext.currentSessionKey;
+      await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        runtime,
+        fn: () =>
+          bot.api.sendMessage(
+            commandContext.runtimeContext.chatId,
+            `Current session: ${code}\n${title}`,
+            buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {},
+          ),
+      });
+    });
+
+    bot.command("switch", async (ctx: TelegramNativeCommandContext) => {
+      const commandContext = await resolveSharedSessionCommandContext(ctx);
+      if (!commandContext) {
+        return;
+      }
+      const shortCode = normalizeTelegramSessionShortCode(ctx.match);
+      if (!shortCode) {
+        await withTelegramApiErrorLogging({
+          operation: "sendMessage",
+          runtime,
+          fn: () =>
+            bot.api.sendMessage(
+              commandContext.runtimeContext.chatId,
+              "Usage: /switch <5-character-code>",
+              buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {},
+            ),
+        });
+        return;
+      }
+      const target = findTelegramSessionByShortCode({
+        agentId: commandContext.runtimeContext.route.agentId,
+        shortCode,
+      });
+      if (!target) {
+        await withTelegramApiErrorLogging({
+          operation: "sendMessage",
+          runtime,
+          fn: () =>
+            bot.api.sendMessage(
+              commandContext.runtimeContext.chatId,
+              `Session ${shortCode} was not found.`,
+              buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {},
+            ),
+        });
+        return;
+      }
+      await getSessionBindingService().bind({
+        targetKind: "session",
+        targetSessionKey: target.sessionKey,
+        placement: "current",
+        conversation: {
+          channel: "telegram",
+          accountId: commandContext.runtimeContext.route.accountId,
+          conversationId: commandContext.conversationId,
+        },
+        metadata: {
+          source: "telegram-session-switch",
+          shortCode,
+        },
+      });
+      await withTelegramApiErrorLogging({
+        operation: "sendMessage",
+        runtime,
+        fn: () =>
+          bot.api.sendMessage(
+            commandContext.runtimeContext.chatId,
+            `Switched to ${shortCode}: ${resolveTelegramSessionTitle(target.entry, target.sessionKey)}`,
+            buildTelegramThreadParams(commandContext.runtimeContext.threadSpec) ?? {},
+          ),
+      });
+    });
+  }
 
   if (commandsToRegister.length > 0 || pluginCatalog.commands.length > 0) {
     for (const command of nativeCommands) {

@@ -33,6 +33,13 @@ import {
   commitReplySessionInitialization,
   loadReplySessionInitializationSnapshot,
 } from "../../config/sessions/session-accessor.js";
+import {
+  collectSessionShortCodes,
+  createArchivedSessionEntry,
+  clearSessionEntryDeliveryContext,
+  isArchivedSessionEntry,
+  resolveActiveSessionLifecycleEntry,
+} from "../../config/sessions/session-lifecycle.js";
 import { resolveSessionKey } from "../../config/sessions/session-key.js";
 import { resolveMaintenanceConfigFromInput } from "../../config/sessions/store-maintenance.js";
 import { parseSessionThreadInfoFast } from "../../config/sessions/thread-info.js";
@@ -819,9 +826,38 @@ async function initSessionStateAttempt(
     // snapshot through /new; the next turn must rebuild the visible skill list.
     sessionEntry.skillsSnapshot = undefined;
   }
+  const existingLifecycleShortCodes = collectSessionShortCodes(
+    initializationSnapshot.sessionStoreView,
+    sessionKey,
+  );
+  const lifecycleArchive =
+    previousSessionEntry && resetTriggered
+      ? createArchivedSessionEntry({
+          activeSessionKey: sessionKey,
+          archivedAt: now,
+          archiveReason: matchedResetTriggerLower === "/new" ? "new" : "reset",
+          existingCodes: existingLifecycleShortCodes,
+          previousEntry: previousSessionEntry,
+          previousSessionKey: sessionKey,
+        })
+      : undefined;
+  if (lifecycleArchive) {
+    existingLifecycleShortCodes.add(lifecycleArchive.shortCode);
+  }
+  if (isArchivedSessionEntry(sessionEntry)) {
+    sessionEntry = clearSessionEntryDeliveryContext(sessionEntry);
+  } else {
+    const activeLifecycleEntry = resolveActiveSessionLifecycleEntry({
+      entry: sessionEntry,
+      existingCodes: existingLifecycleShortCodes,
+      sessionKey,
+    });
+    sessionEntry = activeLifecycleEntry;
+  }
   // Archive old transcript so it doesn't accumulate on disk (#14869).
   const committed = await commitReplySessionInitialization({
     activeSessionKey: sessionKey,
+    archivePreviousEntry: lifecycleArchive ? false : undefined,
     agentId,
     expectedRevision: initializationSnapshot.revision,
     fallbackSessionFile,
@@ -851,7 +887,10 @@ async function initSessionStateAttempt(
         warn: (message) => log.warn(message),
       }),
     previousEntry: previousSessionEntry,
-    retiredEntry: retiredLegacyMainDelivery,
+    retiredEntries: [
+      ...(lifecycleArchive ? [{ key: lifecycleArchive.key, entry: lifecycleArchive.entry }] : []),
+      ...(retiredLegacyMainDelivery ? [retiredLegacyMainDelivery] : []),
+    ],
     sessionEntry,
     sessionKey,
     storePath,

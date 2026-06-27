@@ -166,6 +166,8 @@ export const SessionsListParamsSchema = Type.Object(
     activeMinutes: Type.Optional(Type.Integer({ minimum: 1 })),
     includeGlobal: Type.Optional(Type.Boolean()),
     includeUnknown: Type.Optional(Type.Boolean()),
+    /** Include lifecycle-archived sessions in the result set. */
+    showArchived: Type.Optional(Type.Boolean()),
     /**
      * Limit returned agent-scoped rows to agents currently present in config.
      * Broad disk discovery remains the default for recovery/ACP consumers.

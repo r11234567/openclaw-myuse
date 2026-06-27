@@ -72,6 +72,7 @@ import {
   type SessionScope,
 } from "../config/sessions.js";
 import { listSessionEntries as listAccessorSessionEntries } from "../config/sessions/session-accessor.js";
+import { isArchivedSessionEntry } from "../config/sessions/session-lifecycle.js";
 import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { openRootFileSync } from "../infra/boundary-file-read.js";
 import { projectPluginSessionExtensionsSync } from "../plugins/host-hook-state.js";
@@ -2155,6 +2156,11 @@ export function buildGatewaySessionRow(params: {
     displayName,
     derivedTitle,
     lastMessagePreview,
+    archived: isArchivedSessionEntry(entry) ? true : undefined,
+    archivedAt: entry?.archivedAt,
+    archiveReason: entry?.archiveReason,
+    activeSessionKey: entry?.activeSessionKey,
+    sessionShortCode: entry?.sessionShortCode,
     channel,
     subject,
     groupChannel,
@@ -2496,6 +2502,7 @@ function filterSessionEntries(params: {
   const label = normalizeOptionalString(opts.label) ?? "";
   const agentId = typeof opts.agentId === "string" ? normalizeAgentId(opts.agentId) : "";
   const search = normalizeLowercaseStringOrEmpty(opts.search);
+  const showArchived = opts.showArchived === true;
   const activeMinutes =
     typeof opts.activeMinutes === "number" && Number.isFinite(opts.activeMinutes)
       ? Math.max(1, Math.floor(opts.activeMinutes))
@@ -2529,6 +2536,9 @@ function filterSessionEntries(params: {
     })
     .filter(([key, entry]) => {
       if (isPhantomAgentStoreListEntry(key, entry)) {
+        return false;
+      }
+      if (!showArchived && isArchivedSessionEntry(entry)) {
         return false;
       }
       if (!spawnedBy) {
@@ -2573,6 +2583,9 @@ function filterSessionEntries(params: {
         resolveSessionListSearchDisplayName(key, entry),
         entry?.label,
         entry?.subject,
+        entry?.sessionShortCode,
+        entry?.activeSessionKey,
+        entry?.archivedFromSessionKey,
         entry?.sessionId,
         key,
       ];

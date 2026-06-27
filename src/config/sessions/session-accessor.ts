@@ -100,6 +100,7 @@ import {
   withOwnedSessionTranscriptWrites,
 } from "./transcript-write-context.js";
 import type { SessionCompactionCheckpoint, SessionEntry } from "./types.js";
+import { isArchivedSessionEntry } from "./session-lifecycle.js";
 
 /**
  * Session access API for callers that need entries or transcripts without
@@ -412,6 +413,7 @@ export type ReplySessionInitializationSnapshot = {
   currentEntry?: SessionEntry;
   readEntry: (sessionKey: string) => SessionEntry | undefined;
   revision: string;
+  sessionStoreView: Record<string, SessionEntry>;
 };
 
 export type ReplySessionInitializationCommitContext = {
@@ -438,6 +440,21 @@ type SessionEntryRetirement = {
   entry: SessionEntry;
   key: string;
 };
+
+function combineSessionEntryRetirements(
+  ...entries: Array<SessionEntryRetirement | undefined>
+): SessionEntryRetirement[] | undefined {
+  const filtered = entries.filter((entry): entry is SessionEntryRetirement => Boolean(entry));
+  return filtered.length > 0 ? filtered : undefined;
+}
+
+function resolveUnarchivedPreviousSessionTranscript(
+  previousEntry?: SessionEntry,
+): SessionLifecycleTranscriptInfo {
+  return previousEntry?.sessionFile
+    ? { sessionFile: previousEntry.sessionFile, transcriptArchived: false }
+    : {};
+}
 
 let sessionArchiveRuntimePromise: Promise<
   typeof import("../../gateway/session-archive.runtime.js")
@@ -1645,12 +1662,14 @@ export async function persistSessionResetLifecycle(params: {
  */
 export async function persistSessionRolloverLifecycle(params: {
   activeSessionKey: string;
+  archivePreviousEntry?: boolean;
   agentId: string;
   maintenanceConfig?: ResolvedSessionMaintenanceConfig;
   onArchiveError?: (error: unknown, sourcePath: string) => void;
   onMaintenanceWarning?: (warning: SessionMaintenanceWarning) => void | Promise<void>;
   previousEntry?: SessionEntry;
   retiredEntry?: SessionEntryRetirement;
+  retiredEntries?: SessionEntryRetirement[];
   sessionEntry: SessionEntry;
   sessionKey: string;
   storePath: string;
@@ -1662,8 +1681,11 @@ export async function persistSessionRolloverLifecycle(params: {
         ...store[params.sessionKey],
         ...params.sessionEntry,
       };
-      if (params.retiredEntry) {
-        store[params.retiredEntry.key] = params.retiredEntry.entry;
+      for (const retiredEntry of combineSessionEntryRetirements(
+        params.retiredEntry,
+        ...(params.retiredEntries ?? []),
+      ) ?? []) {
+        store[retiredEntry.key] = retiredEntry.entry;
       }
       return store[params.sessionKey] ?? params.sessionEntry;
     },
@@ -1674,12 +1696,15 @@ export async function persistSessionRolloverLifecycle(params: {
     },
   );
 
-  const previousSessionTranscript = await archivePreviousSessionTranscript({
-    agentId: params.agentId,
-    onArchiveError: params.onArchiveError,
-    previousEntry: params.previousEntry,
-    storePath: params.storePath,
-  });
+  const previousSessionTranscript =
+    params.archivePreviousEntry === false || isArchivedSessionEntry(params.previousEntry)
+      ? resolveUnarchivedPreviousSessionTranscript(params.previousEntry)
+      : await archivePreviousSessionTranscript({
+          agentId: params.agentId,
+          onArchiveError: params.onArchiveError,
+          previousEntry: params.previousEntry,
+          storePath: params.storePath,
+        });
 
   return {
     previousSessionTranscript,
@@ -1703,6 +1728,7 @@ export function loadReplySessionInitializationSnapshot(params: {
       return entry ? { ...entry } : undefined;
     },
     revision: createReplySessionInitializationRevision(currentEntry),
+    sessionStoreView: entries,
   };
 }
 
@@ -1713,6 +1739,7 @@ export function loadReplySessionInitializationSnapshot(params: {
  */
 export async function commitReplySessionInitialization(params: {
   activeSessionKey: string;
+  archivePreviousEntry?: boolean;
   agentId: string;
   expectedRevision: string;
   fallbackSessionFile?: string;
@@ -1724,6 +1751,7 @@ export async function commitReplySessionInitialization(params: {
   ) => Promise<SessionEntry> | SessionEntry;
   previousEntry?: SessionEntry;
   retiredEntry?: SessionEntryRetirement;
+  retiredEntries?: SessionEntryRetirement[];
   sessionEntry: SessionEntry;
   sessionKey: string;
   storePath: string;
@@ -1762,8 +1790,11 @@ export async function commitReplySessionInitialization(params: {
         storePath: params.storePath,
       });
       store[resolved.normalizedKey] = sessionEntry;
-      if (params.retiredEntry) {
-        store[params.retiredEntry.key] = params.retiredEntry.entry;
+      for (const retiredEntry of combineSessionEntryRetirements(
+        params.retiredEntry,
+        ...(params.retiredEntries ?? []),
+      ) ?? []) {
+        store[retiredEntry.key] = retiredEntry.entry;
       }
       return {
         ok: true,
@@ -1783,12 +1814,15 @@ export async function commitReplySessionInitialization(params: {
     return committed;
   }
 
-  const previousSessionTranscript = await archivePreviousSessionTranscript({
-    agentId: params.agentId,
-    onArchiveError: params.onArchiveError,
-    previousEntry: params.previousEntry,
-    storePath: params.storePath,
-  });
+  const previousSessionTranscript =
+    params.archivePreviousEntry === false || isArchivedSessionEntry(params.previousEntry)
+      ? resolveUnarchivedPreviousSessionTranscript(params.previousEntry)
+      : await archivePreviousSessionTranscript({
+          agentId: params.agentId,
+          onArchiveError: params.onArchiveError,
+          previousEntry: params.previousEntry,
+          storePath: params.storePath,
+        });
   return {
     ...committed,
     previousSessionTranscript,

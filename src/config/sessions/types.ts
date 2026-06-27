@@ -212,6 +212,22 @@ export type RestartRecoveryRun = {
 
 export type SessionEntry = {
   /**
+   * Shared conversation lifecycle state. Active entries own the routable
+   * conversation key; archived entries are selectable history rows that keep
+   * transcript identity but must not retain delivery targets.
+   */
+  lifecycleState?: "active" | "archived";
+  /** Stable short selector used by chat surfaces with compact command syntax. */
+  sessionShortCode?: string;
+  /** Route key that currently owns this conversation family. */
+  activeSessionKey?: string;
+  /** Original routable key before this entry moved to an archived lifecycle key. */
+  archivedFromSessionKey?: string;
+  /** Timestamp (ms) when this entry became archived. */
+  archivedAt?: number;
+  /** Lifecycle reason that archived this entry. */
+  archiveReason?: "new" | "reset" | "idle" | "daily" | "manual";
+  /**
    * Last delivered heartbeat payload (used to suppress duplicate heartbeat notifications).
    * Stored on the main session entry.
    */

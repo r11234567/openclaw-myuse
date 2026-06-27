@@ -201,6 +201,51 @@ describe("gateway session utils", () => {
     expect(listed.hasMore).toBe(true);
   });
 
+  test("session lists hide lifecycle archived sessions unless requested", () => {
+    const cfg = createModelDefaultsConfig({ primary: "openai/gpt-5.4" });
+    const store = {
+      "agent:main:telegram:direct:42": {
+        sessionId: "active-session",
+        updatedAt: 20,
+        lifecycleState: "active",
+        sessionShortCode: "act01",
+      } satisfies SessionEntry,
+      "agent:main:telegram:direct:42:archived:old01": {
+        sessionId: "archived-session",
+        updatedAt: 10,
+        lifecycleState: "archived",
+        sessionShortCode: "old01",
+        archivedAt: 10,
+        archiveReason: "new",
+      } satisfies SessionEntry,
+    };
+
+    const hidden = listSessionsFromStore({
+      cfg,
+      storePath: "",
+      store,
+      opts: {},
+    });
+    const shown = listSessionsFromStore({
+      cfg,
+      storePath: "",
+      store,
+      opts: { showArchived: true, search: "old01" },
+    });
+
+    expect(hidden.sessions.map((session) => session.key)).toEqual([
+      "agent:main:telegram:direct:42",
+    ]);
+    expect(shown.sessions).toEqual([
+      expect.objectContaining({
+        archived: true,
+        archiveReason: "new",
+        sessionId: "archived-session",
+        sessionShortCode: "old01",
+      }),
+    ]);
+  });
+
   test("session list search includes direct-session origin display labels", () => {
     const cfg = { agents: { list: [{ id: "main", default: true }] } } as OpenClawConfig;
     const store = {

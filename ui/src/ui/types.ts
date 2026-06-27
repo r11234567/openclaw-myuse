@@ -472,6 +472,7 @@ export type GatewaySessionRow = {
   kind: "cron" | "direct" | "group" | "global" | "unknown";
   label?: string;
   displayName?: string;
+  derivedTitle?: string;
   surface?: string;
   subject?: string;
   room?: string;
@@ -497,6 +498,10 @@ export type GatewaySessionRow = {
   totalTokensFresh?: boolean;
   status?: SessionRunStatus;
   archived?: boolean;
+  archivedAt?: number;
+  archiveReason?: string;
+  activeSessionKey?: string;
+  sessionShortCode?: string;
   hasActiveRun?: boolean;
   subagentRunState?: SubagentRunState;
   hasActiveSubagentRun?: boolean;

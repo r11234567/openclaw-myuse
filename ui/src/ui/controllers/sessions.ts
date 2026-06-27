@@ -1128,6 +1128,10 @@ async function loadSessionsOnce(
       includeUnknown,
       configuredAgentsOnly,
     };
+    if (showArchived) {
+      params.showArchived = true;
+      params.includeDerivedTitles = true;
+    }
     const agentId = overrides?.agentId?.trim();
     const resultAgentId = agentId ? normalizeAgentId(agentId) : null;
     if (agentId) {

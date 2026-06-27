@@ -803,6 +803,8 @@ describe("loadSessions", () => {
       includeGlobal: true,
       includeUnknown: true,
       configuredAgentsOnly: true,
+      includeDerivedTitles: true,
+      showArchived: true,
     });
   });
 

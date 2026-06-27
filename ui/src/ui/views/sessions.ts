@@ -823,7 +823,8 @@ function renderRows(row: GatewaySessionRow, props: SessionsProps) {
     updated,
     checkpointCount: visibleCheckpointCount,
   });
-  const displayName = normalizeOptionalString(row.displayName) ?? null;
+  const displayName =
+    normalizeOptionalString(row.displayName) ?? normalizeOptionalString(row.derivedTitle) ?? null;
   const trimmedLabel = normalizeOptionalString(row.label) ?? "";
   const showDisplayName = Boolean(
     displayName && displayName !== row.key && displayName !== trimmedLabel,

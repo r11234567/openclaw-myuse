@@ -53,6 +53,11 @@ export type GatewaySessionRow = {
   displayName?: string;
   derivedTitle?: string;
   lastMessagePreview?: string;
+  archived?: boolean;
+  archivedAt?: number;
+  archiveReason?: SessionEntry["archiveReason"];
+  activeSessionKey?: string;
+  sessionShortCode?: string;
   channel?: string;
   subject?: string;
   groupChannel?: string;

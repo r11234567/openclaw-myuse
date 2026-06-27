@@ -438,6 +438,70 @@ describe("session accessor file-backed seam", () => {
     expect(fs.existsSync(previousTranscript)).toBe(false);
   });
 
+  it("preserves the previous transcript when initialization archives by lifecycle", async () => {
+    const sessionKey = "agent:main:main";
+    const previousTranscript = path.join(tempDir, "previous-lifecycle.jsonl");
+    fs.writeFileSync(
+      previousTranscript,
+      `${JSON.stringify({
+        type: "session",
+        version: 3,
+        id: "previous-lifecycle",
+        timestamp: new Date().toISOString(),
+      })}\n`,
+      "utf8",
+    );
+    await upsertSessionEntry(
+      { sessionKey, storePath },
+      {
+        sessionFile: previousTranscript,
+        sessionId: "previous-lifecycle",
+        updatedAt: 10,
+      },
+    );
+
+    const snapshot = loadReplySessionInitializationSnapshot({ sessionKey, storePath });
+    const committed = await commitReplySessionInitialization({
+      activeSessionKey: sessionKey,
+      agentId: "main",
+      archivePreviousEntry: false,
+      expectedRevision: snapshot.revision,
+      previousEntry: snapshot.currentEntry,
+      retiredEntries: [
+        {
+          key: `${sessionKey}:archived:old01`,
+          entry: {
+            ...snapshot.currentEntry!,
+            lifecycleState: "archived",
+            sessionShortCode: "old01",
+          },
+        },
+      ],
+      sessionEntry: {
+        sessionId: "next-lifecycle",
+        updatedAt: 20,
+      },
+      sessionKey,
+      storePath,
+    });
+
+    expect(committed.ok).toBe(true);
+    if (!committed.ok) {
+      throw new Error("expected reply session initialization to commit");
+    }
+    expect(committed.previousSessionTranscript).toEqual({
+      sessionFile: previousTranscript,
+      transcriptArchived: false,
+    });
+    expect(fs.existsSync(previousTranscript)).toBe(true);
+    expect(committed.sessionStoreView[`${sessionKey}:archived:old01`]).toMatchObject({
+      lifecycleState: "archived",
+      sessionId: "previous-lifecycle",
+      sessionFile: previousTranscript,
+      sessionShortCode: "old01",
+    });
+  });
+
   it("does not reuse the previous transcript file when initialization rotates session ids", async () => {
     const sessionKey = "agent:main:main";
     const previousTranscript = path.join(tempDir, "previous-rotation.jsonl");
