@@ -104,7 +104,7 @@ describe("Dockerfile", () => {
 
   it("uses the Docker target platform for pnpm install and prune", async () => {
     const dockerfile = await readFile(dockerfilePath, "utf8");
-    const installIndex = dockerfile.indexOf("pnpm install $install_args");
+    const installIndex = dockerfile.indexOf("pnpm install --frozen-lockfile \\");
     const storeSeedIndex = dockerfile.indexOf(
       "node scripts/list-prod-store-packages.mjs | xargs -r pnpm store add",
     );
@@ -119,21 +119,8 @@ describe("Dockerfile", () => {
     expect(
       dockerfile.split("--config.supportedArchitectures.cpu=\"$(node -p 'process.arch')\"").length -
         1,
-    ).toBe(1);
-    expect(
-      dockerfile.split("--config.supportedArchitectures.cpu=$(node -p 'process.arch')").length -
-        1,
-    ).toBe(1);
+    ).toBe(2);
     expect(dockerfile.split("--config.supportedArchitectures.libc=glibc").length - 1).toBe(2);
-  });
-
-  it("recovers from stale pnpm tarball integrity metadata in Docker cache mounts", async () => {
-    const dockerfile = await readFile(dockerfilePath, "utf8");
-
-    expect(dockerfile).toContain("> /tmp/openclaw-pnpm-install.log 2>&1");
-    expect(dockerfile).toContain('grep -q "ERR_PNPM_TARBALL_INTEGRITY"');
-    expect(dockerfile).toContain("pnpm store prune");
-    expect(dockerfile).toContain("NODE_OPTIONS=--max-old-space-size=2048 pnpm install $install_args");
   });
 
   it("verifies matrix-sdk-crypto native addons without hardcoded pnpm virtual-store paths", async () => {
