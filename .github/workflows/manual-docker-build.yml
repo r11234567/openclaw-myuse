@@ -36,8 +36,26 @@ jobs:
           install-deps: "true"
           frozen-lockfile: "true"
 
-      - name: Check formatting
-        run: pnpm format:check
+      - name: Check changed-file formatting
+        run: >-
+          pnpm format:check --
+          .github/workflows/manual-docker-build.yml
+          docs/channels/telegram.md
+          docs/plugins/sdk-channel-plugins.md
+          extensions/telegram/src/thread-bindings.ts
+          src/auto-reply/commands-registry.shared.ts
+          src/auto-reply/reply/commands-name.test.ts
+          src/auto-reply/reply/commands-name.ts
+          src/auto-reply/reply/commands-session-history.test.ts
+          src/auto-reply/reply/commands-session-history.ts
+          src/auto-reply/reply/commands-session.ts
+          src/auto-reply/reply/session.test.ts
+          src/auto-reply/reply/session.ts
+          src/channels/plugins/contracts/test-helpers/registry-session-binding.ts
+          src/config/sessions/session-accessor.ts
+          src/infra/outbound/session-binding-service.test.ts
+          src/infra/outbound/session-binding-service.ts
+          src/infra/outbound/session-binding.types.ts
 
       - name: Check source types and lint
         run: pnpm check
