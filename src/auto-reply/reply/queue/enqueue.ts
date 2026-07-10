@@ -3,7 +3,11 @@ import { normalizeOptionalString } from "@openclaw/normalization-core/string-coe
 import { normalizeChatType } from "../../../channels/chat-type.js";
 import { resolveGlobalDedupeCache } from "../../../infra/dedupe.js";
 import { channelRouteDedupeKey } from "../../../plugin-sdk/channel-route.js";
-import { applyQueueDropPolicy, shouldSkipQueueItem } from "../../../utils/queue-helpers.js";
+import {
+  applyQueueDropPolicy,
+  countPendingQueueItems,
+  shouldSkipQueueItem,
+} from "../../../utils/queue-helpers.js";
 import {
   createOverflowSummaryRetrySource,
   kickFollowupDrainIfIdle,
@@ -11,7 +15,7 @@ import {
   resolveFollowupDeliveryContextKey,
   resolveFollowupReplyAnchor,
 } from "./drain.js";
-import { getExistingFollowupQueue, getFollowupQueue } from "./state.js";
+import { getExistingFollowupQueue, getFollowupQueue, trimSummaryElisionsToCap } from "./state.js";
 import {
   completeFollowupRunLifecycle,
   isFollowupRunAborted,
@@ -118,11 +122,22 @@ export function enqueueFollowupRun(
   if (shouldSkipQueueItem({ item: run, items: queue.items, dedupe })) {
     return false;
   }
+  // drop:new rejects this source without mutating the existing queue. Do not
+  // publish an external queued identity for work that will never be admitted.
+  const pendingCount = countPendingQueueItems(queue.items, queue.inFlight);
+  if (queue.dropPolicy === "new" && queue.cap > 0 && pendingCount >= queue.cap) {
+    completeFollowupRunLifecycle(run);
+    return false;
+  }
+  if (!markFollowupRunEnqueued(run)) {
+    return false;
+  }
   queue.lastEnqueuedAt = Date.now();
   queue.lastRun = run.run;
 
   const shouldEnqueue = applyQueueDropPolicy({
     queue,
+    inFlight: queue.inFlight,
     summarize: (item) => normalizeOptionalString(item.summaryLine) || item.prompt.trim(),
     onDrop: (dropped) => {
       if (queue.dropPolicy === "summarize") {
@@ -142,34 +157,36 @@ export function enqueueFollowupRun(
         const contextKey = resolveFollowupDeliveryContextKey(item);
         const lastElision = queue.summaryElisions.at(-1);
         if (lastElision?.contextKey === contextKey) {
+          const compactSource = createOverflowSummaryRetrySource(item);
           lastElision.count += 1;
-          lastElision.source = createOverflowSummaryRetrySource(item);
-          lastElision.sourceRefs.add(item);
-        } else {
-          if (queue.summaryElisions.length >= queue.cap) {
-            const evicted = queue.summaryElisions.shift();
-            if (evicted) {
-              queue.evictedSummaryCount += evicted.count;
-              completeFollowupRunLifecycle(evicted.source);
-            }
+          lastElision.sources.push(compactSource);
+          lastElision.sourceRefs.set(item, compactSource);
+          if (queue.activeSummarySources.has(item)) {
+            queue.activeSummarySources.add(compactSource);
           }
+        } else {
+          const compactSource = createOverflowSummaryRetrySource(item);
           queue.summaryElisions.push({
             contextKey,
             count: 1,
-            source: createOverflowSummaryRetrySource(item),
-            sourceRefs: new WeakSet([item]),
+            sources: [compactSource],
+            sourceRefs: new WeakMap([[item, compactSource]]),
           });
+          if (queue.activeSummarySources.has(item)) {
+            queue.activeSummarySources.add(compactSource);
+          }
         }
-        completeFollowupRunLifecycle(item);
+        trimSummaryElisionsToCap(queue);
       }
     }
   }
   if (!shouldEnqueue) {
+    completeFollowupRunLifecycle(run);
     return false;
   }
 
+  run.queueAbortSignal = queue.abortController.signal;
   queue.items.push(run);
-  markFollowupRunEnqueued(run);
   if (recentMessageIdKey) {
     RECENT_QUEUE_MESSAGE_IDS.check(recentMessageIdKey);
   }
@@ -190,7 +207,7 @@ export function getFollowupQueueDepth(key: string): number {
   if (!queue) {
     return 0;
   }
-  return queue.items.length;
+  return countPendingQueueItems(queue.items, queue.inFlight);
 }
 
 export function resetRecentQueuedMessageIdDedupe(): void {

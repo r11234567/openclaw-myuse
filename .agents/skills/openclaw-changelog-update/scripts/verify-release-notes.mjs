@@ -2,6 +2,7 @@
 
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 const repo = "openclaw/openclaw";
 const commitAssociationQueryBatchSize = 20;
@@ -19,7 +20,7 @@ const nonEditorialTypes = new Set([
 const nonEditorialTitlePattern =
   /(?:^|[\s:([{\-])(docs?|documentation|tests?|testing|qa|quality assurance|refactor(?:ing)?|ci|continuous integration|build|chore|style|lint|format)(?:$|[\s:)\]}\-])/i;
 const editorialTitlePattern =
-  /^\s*(?:\[[^\]]+\]\s*)?(?:#\d+:\s*)?(?:add|allow|block|enable|expose|fail|fix|harden|honor|improve|keep|migrate|move|persist|preserve|prevent|propagate|rate[- ]?limit|restore|revert|ship|support|treat|validate)\b|^\s*#\d+:/i;
+  /^\s*(?:\[[^\]]+\]\s*)?(?:#\d+:\s*)?(?:add|allow|block|enable|expose|fail|fix|harden|honor|improve|keep|migrate|move|persist|polish|preserve|prevent|propagate|rate[- ]?limit|restore|revert|ship|support|treat|validate)\b|^\s*#\d+:/i;
 const genericDirectCommitTerms = new Set([
   "add",
   "allow",
@@ -209,7 +210,7 @@ function sectionFor(changelog, version) {
 function referencesIn(text) {
   const references = [];
   for (const match of text.matchAll(
-    /(?<![A-Za-z0-9_.-])(?:(?<owner>[A-Za-z0-9_.-]+)\/(?<name>[A-Za-z0-9_.-]+))?#(?<number>\d+)/g,
+    /(?<![A-Za-z0-9_.&-])(?:(?<owner>[A-Za-z0-9_.-]+)\/(?<name>[A-Za-z0-9_.-]+))?#(?<number>\d+)/g,
   )) {
     const qualifiedRepository = match.groups?.owner
       ? `${match.groups.owner}/${match.groups.name}`.toLowerCase()
@@ -219,6 +220,42 @@ function referencesIn(text) {
     }
   }
   return references;
+}
+
+function referenceLabelsIn(text) {
+  const labels = [];
+  for (const match of text.matchAll(
+    /(?<![A-Za-z0-9_.&-])(?:(?<owner>[A-Za-z0-9_.-]+)\/(?<name>[A-Za-z0-9_.-]+))?#(?<number>\d+)/g,
+  )) {
+    const qualifiedRepository = match.groups?.owner
+      ? `${match.groups.owner}/${match.groups.name}`
+      : undefined;
+    labels.push(
+      !qualifiedRepository || qualifiedRepository.toLowerCase() === repo
+        ? `#${match.groups?.number}`
+        : `${qualifiedRepository}#${match.groups?.number}`,
+    );
+  }
+  return labels;
+}
+
+export function renderContributionRecordEntry(entry) {
+  const references = [];
+  appendUnique(references, referenceLabelsIn(entry.title));
+  appendUnique(
+    references,
+    (entry.priorReferences ?? []).map((number) => `#${number}`),
+  );
+  appendUnique(references, entry.externalReferences ?? []);
+  for (const issue of entry.linkedIssues) {
+    appendUnique(references, [`#${issue.number}`]);
+  }
+  const related = references.length > 0 ? ` Related ${references.join(", ")}.` : "";
+  const attribution =
+    entry.thanks.length > 0
+      ? ` Thanks ${entry.thanks.map((handle) => `@${handle}`).join(" and ")}.`
+      : "";
+  return `- **PR #${entry.number}**${related}${attribution}`;
 }
 
 function closingReferencesIn(text) {
@@ -255,9 +292,19 @@ function handlesIn(text) {
     );
 }
 
-function relatedReferencesIn(line) {
-  const related = line.match(/\bRelated ((?:#\d+)(?:, #\d+)*)\./);
-  return related ? referencesIn(related[1]) : [];
+function externalReferencesIn(text) {
+  return referenceLabelsIn(text).filter((reference) => !reference.startsWith("#"));
+}
+
+function appendUnique(values, additions) {
+  const seen = new Set(values.map((value) => value.toLowerCase()));
+  for (const value of additions) {
+    const key = value.toLowerCase();
+    if (!seen.has(key)) {
+      values.push(value);
+      seen.add(key);
+    }
+  }
 }
 
 function addContributionRecordEntry(entries, key, entry) {
@@ -265,16 +312,18 @@ function addContributionRecordEntry(entries, key, entry) {
   if (!existing) {
     entries.set(key, {
       ...entry,
+      externalReferences: [...(entry.externalReferences ?? [])],
       references: [...entry.references],
       thanks: [...entry.thanks],
     });
     return;
   }
+  appendUnique(existing.externalReferences, entry.externalReferences ?? []);
   appendReferences(existing.references, entry.references);
   addHandles(existing.thanks, entry.thanks);
 }
 
-function contributionRecordFor(section) {
+export function contributionRecordFor(section) {
   const result = { legacyIssues: new Map(), pullRequests: new Map() };
   const recordStart = section.source.search(/\n### Complete contribution (?:ledger|record)\r?$/m);
   if (recordStart < 0) {
@@ -301,8 +350,10 @@ function contributionRecordFor(section) {
       const number = explicitRecord?.[1] ?? legacyRecord?.[1];
       if (number) {
         const value = Number(number);
+        const metadata = explicitRecord ? line.slice(explicitRecord[0].length) : line;
         addContributionRecordEntry(result.pullRequests, value, {
-          references: relatedReferencesIn(line),
+          externalReferences: externalReferencesIn(metadata),
+          references: referencesIn(metadata).filter((reference) => reference !== value),
           thanks: handlesIn(line),
         });
       }
@@ -345,6 +396,7 @@ function withoutRevertedContributionRecords(record, revertedReferences) {
     }
     addContributionRecordEntry(filtered.pullRequests, number, {
       ...entry,
+      externalReferences: entry.externalReferences,
       references: entry.references.filter((reference) => !revertedReferences.has(reference)),
     });
   }
@@ -656,9 +708,12 @@ function resolveAssociatedPullRequests(commitHashes, targetTimestamp) {
     const pullRequests = pullRequestsByCommit.get(commitHash) ?? [];
     const seen = new Set(pullRequests);
     for (const pullRequest of connection?.nodes ?? []) {
+      // GitHub's mergedAt can trail the merge commit timestamp by a second.
+      // Keep an exact merge-commit association so a release ending there does not drop its PR.
+      const isExactMergeCommit = pullRequest.mergeCommit?.oid === commitHash;
       if (
         pullRequest.mergedAt &&
-        mergedByTarget(pullRequest.mergedAt, targetTimestamp) &&
+        (isExactMergeCommit || mergedByTarget(pullRequest.mergedAt, targetTimestamp)) &&
         !seen.has(pullRequest.number)
       ) {
         pullRequests.push(pullRequest.number);
@@ -682,6 +737,7 @@ function resolveAssociatedPullRequests(commitHashes, targetTimestamp) {
                   nodes {
                     number
                     mergedAt
+                    mergeCommit { oid }
                   }
                   pageInfo { hasNextPage endCursor }
                 }
@@ -707,6 +763,7 @@ function resolveAssociatedPullRequests(commitHashes, targetTimestamp) {
                   nodes {
                     number
                     mergedAt
+                    mergeCommit { oid }
                   }
                   pageInfo { hasNextPage endCursor }
                 }
@@ -1148,7 +1205,7 @@ function mergeIssues(...groups) {
   return [...entries.values()];
 }
 
-function ledgerFor(
+export function ledgerFor(
   base,
   target,
   references,
@@ -1191,13 +1248,15 @@ function ledgerFor(
     (entry) =>
       entry.type === "PullRequest" &&
       entry.mergedAt &&
-      mergedByTarget(entry.mergedAt, targetTimestamp) &&
+      (sourcePullRequests.has(entry.number) || mergedByTarget(entry.mergedAt, targetTimestamp)) &&
       recordedPullRequests.has(entry.number) &&
       !revertedReferences.has(entry.number),
   );
   const issues = entries.filter((entry) => entry.type === "Issue");
   const legacyIssues = legacyIssuesByPullRequest(priorRecord, nodes);
   const records = pullRequests.map((entry) => {
+    const priorEntry = priorRecord.pullRequests.get(entry.number);
+    const priorReferences = priorEntry?.references ?? [];
     const titleIssues = issueEntries(referencesIn(entry.title), nodes);
     const closingIssues = issueEntries(
       entry.closingIssuesReferences?.nodes.map((issue) => issue.number) ?? [],
@@ -1207,33 +1266,23 @@ function ledgerFor(
       titleIssues,
       closingIssues,
       relationships.issuesByPullRequest.get(entry.number) ?? [],
+      issueEntries(priorReferences, nodes),
       issueEntries(legacyIssues.get(entry.number) ?? [], nodes, priorRecord.legacyIssues),
     );
-    const titleIssueNumbers = new Set(titleIssues.map((issue) => issue.number));
-    const relatedIssues = linkedIssues.filter((issue) => !titleIssueNumbers.has(issue.number));
     const thanks = [...entry.thanks];
+    addHandles(thanks, priorEntry?.thanks ?? []);
     for (const issue of linkedIssues) {
       addHandles(thanks, issue.thanks);
     }
     return {
       ...entry,
       ...editorialClassification(entry.title),
+      externalReferences: priorEntry?.externalReferences ?? [],
       linkedIssues,
-      relatedIssues,
+      priorReferences,
       thanks,
     };
   });
-  const renderEntry = (entry) => {
-    const attribution =
-      entry.thanks.length > 0
-        ? ` Thanks ${entry.thanks.map((handle) => `@${handle}`).join(" and ")}.`
-        : "";
-    const relatedIssues =
-      entry.relatedIssues.length > 0
-        ? ` Related ${entry.relatedIssues.map((issue) => `#${issue.number}`).join(", ")}.`
-        : "";
-    return `- **PR #${entry.number}** ${withSentenceEnding(entry.title)}${relatedIssues}${attribution}`;
-  };
   const ledger = [
     "### Complete contribution record",
     "",
@@ -1241,7 +1290,7 @@ function ledgerFor(
     "",
     "#### Pull requests",
     "",
-    ...records.map((entry) => renderEntry(entry)),
+    ...records.map((entry) => renderContributionRecordEntry(entry)),
   ].join("\n");
   return {
     entries,
@@ -1262,7 +1311,7 @@ function replaceLedger(changelog, section, ledger, pullRequests, directCommits) 
   return `${changelog.slice(0, section.start)}${replacement}${changelog.slice(section.end)}`;
 }
 
-function ledgerChecks(section, pullRequests, nodes, directCommits) {
+export function ledgerChecks(section, pullRequests, nodes, directCommits) {
   const errors = [];
   if (/@undefined\b/i.test(section.source)) {
     errors.push("release section contains invalid @undefined contributor credit");
@@ -1304,6 +1353,25 @@ function ledgerChecks(section, pullRequests, nodes, directCommits) {
     for (const handle of entry.thanks) {
       if (!line.toLowerCase().includes(`@${handle.toLowerCase()}`)) {
         errors.push(`missing Thanks @${handle} for #${entry.number}`);
+      }
+    }
+    const expectedReferences = [];
+    appendUnique(expectedReferences, referenceLabelsIn(entry.title));
+    appendUnique(
+      expectedReferences,
+      entry.priorReferences.map((number) => `#${number}`),
+    );
+    appendUnique(expectedReferences, entry.externalReferences);
+    appendUnique(
+      expectedReferences,
+      entry.linkedIssues.map((issue) => `#${issue.number}`),
+    );
+    const actualReferences = new Set(
+      referenceLabelsIn(line).map((reference) => reference.toLowerCase()),
+    );
+    for (const reference of expectedReferences) {
+      if (!actualReferences.has(reference.toLowerCase())) {
+        errors.push(`missing ${reference} on contribution record for PR #${entry.number}`);
       }
     }
   }
@@ -1397,6 +1465,8 @@ function manifestFor(options, source, ledger, directCommitRecords) {
       type: entry.type,
       editorialEligible: entry.editorialEligible,
       thanks: entry.thanks,
+      externalReferences: entry.externalReferences,
+      relatedReferences: [...new Set([...entry.priorReferences, ...referencesIn(entry.title)])],
       linkedIssues: entry.linkedIssues.map((issue) => ({
         number: issue.number,
         title: issue.title,
@@ -1514,7 +1584,7 @@ function main() {
     return (
       node?.__typename !== "PullRequest" ||
       !node.mergedAt ||
-      !mergedByTarget(node.mergedAt, source.targetTimestamp)
+      (!source.pullRequests.has(number) && !mergedByTarget(node.mergedAt, source.targetTimestamp))
     );
   });
   if (!options.writeLedger && invalidRecordedPullRequests.length > 0) {
@@ -1615,4 +1685,6 @@ function main() {
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main();
+}

@@ -69,6 +69,7 @@ export type SessionBindingAdapterCapabilities = {
   placements?: SessionBindingPlacement[];
   bindSupported?: boolean;
   unbindSupported?: boolean;
+  archiveCurrentSessionOnNew?: boolean;
 };
 
 export type SessionBindingAdapter = {
@@ -122,6 +123,9 @@ function resolveAdapterCapabilities(
     bindSupported,
     unbindSupported: adapter.capabilities?.unbindSupported ?? Boolean(adapter.unbind),
     placements: bindSupported ? resolveAdapterPlacements(adapter) : [],
+    ...(adapter.capabilities?.archiveCurrentSessionOnNew === true
+      ? { archiveCurrentSessionOnNew: true }
+      : {}),
   };
 }
 
@@ -410,4 +414,3 @@ export const testing = {
     return [...ADAPTERS_BY_CHANNEL_ACCOUNT.keys()];
   },
 };
-export { testing as __testing };

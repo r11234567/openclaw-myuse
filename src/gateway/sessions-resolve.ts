@@ -67,7 +67,6 @@ function isResolvedSessionKeyVisible(params: {
   cfg: OpenClawConfig;
   p: SessionsResolveParams;
   store: Record<string, SessionEntry>;
-  storePath: string;
   key: string;
 }) {
   if (typeof params.p.spawnedBy !== "string" || params.p.spawnedBy.trim().length === 0) {
@@ -75,7 +74,6 @@ function isResolvedSessionKeyVisible(params: {
   }
   return filterAndSortSessionEntries({
     cfg: params.cfg,
-    storePath: params.storePath,
     store: params.store,
     now: Date.now(),
     opts: resolveSessionVisibilityFilterOptions(params.p),
@@ -85,14 +83,12 @@ function isResolvedSessionKeyVisible(params: {
 function findVisibleSessionIdMatches(params: {
   cfg: OpenClawConfig;
   store: Record<string, SessionEntry>;
-  storePath: string;
   p: SessionsResolveParams;
   sessionId: string;
 }): Array<[string, SessionEntry]> {
   const now = Date.now();
   const entries = filterAndSortSessionEntries({
     cfg: params.cfg,
-    storePath: params.storePath,
     store: params.store,
     now,
     opts: resolveSessionVisibilityFilterOptions(params.p),
@@ -141,7 +137,6 @@ export async function resolveSessionKeyFromResolveParams(params: {
           cfg,
           p,
           store,
-          storePath: target.storePath,
           key: target.canonicalKey,
         })
       ) {
@@ -179,7 +174,6 @@ export async function resolveSessionKeyFromResolveParams(params: {
         cfg,
         p,
         store: refreshedTarget.store,
-        storePath: refreshedTarget.storePath,
         key: refreshedTarget.canonicalKey,
       })
     ) {
@@ -200,8 +194,8 @@ export async function resolveSessionKeyFromResolveParams(params: {
   if (hasSessionId) {
     // sessionId can collide across stores; delegate selection so exact key
     // matches and ambiguity rules stay shared with other session-id callers.
-    const { store, storePath } = loadCombinedSessionStoreForGateway(cfg, { agentId: p.agentId });
-    const matches = findVisibleSessionIdMatches({ cfg, store, storePath, p, sessionId });
+    const { store } = loadCombinedSessionStoreForGateway(cfg, { agentId: p.agentId });
+    const matches = findVisibleSessionIdMatches({ cfg, store, p, sessionId });
     const selection = resolveSessionIdMatchSelection(matches, sessionId);
     if (selection.kind === "none") {
       return noSessionFoundResult({ p, message: `No session found: ${sessionId}` });

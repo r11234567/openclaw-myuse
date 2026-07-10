@@ -65,7 +65,6 @@ const DiscordIdListSchema = z.array(DiscordIdSchema);
 const DiscordSnowflakeStringSchema = z.string().regex(/^\d+$/, "Discord user ID must be numeric");
 
 const TelegramInlineButtonsScopeSchema = z.enum(["off", "dm", "group", "all", "allowlist"]);
-const TelegramGroupHistoryContextModeSchema = z.enum(["none", "mention-only", "recent"]);
 const TelegramIdListSchema = z.array(z.union([z.string(), z.number()]));
 
 const TelegramCapabilitiesSchema = z.union([
@@ -103,6 +102,7 @@ const ChannelStreamingProgressSchema = z
     commentary: z.boolean().optional(),
   })
   .strict();
+const DiscordStreamingProgressSchema = ChannelStreamingProgressSchema;
 const SlackStreamingProgressSchema = ChannelStreamingProgressSchema.extend({
   nativeTaskCards: z.boolean().optional(),
 }).strict();
@@ -125,7 +125,9 @@ const ChannelPreviewStreamingConfigSchema = z
 const TelegramPreviewStreamingConfigSchema = ChannelPreviewStreamingConfigSchema.extend({
   preview: ChannelStreamingPreviewSchema.optional(),
 }).strict();
-const DiscordPreviewStreamingConfigSchema = ChannelPreviewStreamingConfigSchema;
+const DiscordPreviewStreamingConfigSchema = ChannelPreviewStreamingConfigSchema.extend({
+  progress: DiscordStreamingProgressSchema.optional(),
+}).strict();
 const SlackStreamingConfigSchema = ChannelPreviewStreamingConfigSchema.extend({
   nativeTransport: z.boolean().optional(),
   progress: SlackStreamingProgressSchema.optional(),
@@ -271,13 +273,11 @@ export const TelegramAccountSchemaBase = z
     replyToMode: ReplyToModeSchema.optional(),
     groups: z.record(z.string(), TelegramGroupSchema.optional()).optional(),
     allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
-    allowFromEnv: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/)).optional(),
     defaultTo: z.union([z.string(), z.number()]).optional(),
     groupAllowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     groupPolicy: GroupPolicySchema.optional().default("allowlist"),
     mentionPatterns: MentionPatternsPolicySchema.optional(),
     contextVisibility: ContextVisibilityModeSchema.optional(),
-    includeGroupHistoryContext: TelegramGroupHistoryContextModeSchema.optional(),
     historyLimit: z.number().int().min(0).optional(),
     dmHistoryLimit: z.number().int().min(0).optional(),
     dms: z.record(z.string(), DmConfigSchema.optional()).optional(),
@@ -409,7 +409,7 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
 }).superRefine((value, ctx) => {
   requireOpenAllowFrom({
     policy: value.dmPolicy,
-    allowFrom: value.allowFrom ?? value.allowFromEnv,
+    allowFrom: value.allowFrom,
     ctx,
     path: ["allowFrom"],
     message:
@@ -417,11 +417,11 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
   });
   requireAllowlistAllowFrom({
     policy: value.dmPolicy,
-    allowFrom: value.allowFrom ?? value.allowFromEnv,
+    allowFrom: value.allowFrom,
     ctx,
     path: ["allowFrom"],
     message:
-      'channels.telegram.dmPolicy="allowlist" requires channels.telegram.allowFrom or channels.telegram.allowFromEnv to contain at least one sender ID source',
+      'channels.telegram.dmPolicy="allowlist" requires channels.telegram.allowFrom to contain at least one sender ID',
   });
   validateTelegramCustomCommands(value, ctx);
 
@@ -431,8 +431,7 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
         continue;
       }
       const effectivePolicy = account.dmPolicy ?? value.dmPolicy;
-      const effectiveAllowFrom =
-        account.allowFrom ?? account.allowFromEnv ?? value.allowFrom ?? value.allowFromEnv;
+      const effectiveAllowFrom = account.allowFrom ?? value.allowFrom;
       requireOpenAllowFrom({
         policy: effectivePolicy,
         allowFrom: effectiveAllowFrom,
@@ -466,7 +465,7 @@ export const TelegramConfigSchema = TelegramAccountSchemaBase.extend({
     const effectiveDmPolicy = account.dmPolicy ?? value.dmPolicy;
     const effectiveAllowFrom = Array.isArray(account.allowFrom)
       ? account.allowFrom
-      : account.allowFromEnv ?? value.allowFrom ?? value.allowFromEnv;
+      : value.allowFrom;
     requireOpenAllowFrom({
       policy: effectiveDmPolicy,
       allowFrom: effectiveAllowFrom,
@@ -922,6 +921,8 @@ export const SlackChannelSchema = z
   .object({
     enabled: z.boolean().optional(),
     requireMention: z.boolean().optional(),
+    ignoreOtherMentions: z.boolean().optional(),
+    replyToMode: ReplyToModeSchema.optional(),
     tools: ToolPolicySchema,
     toolsBySender: ToolPolicyBySenderSchema,
     allowBots: z.union([z.boolean(), z.literal("mentions")]).optional(),
@@ -941,11 +942,18 @@ export const SlackThreadSchema = z
   })
   .strict();
 
-const SlackReplyToModeByChatTypeSchema = z
+const ReplyToModeByChatTypeSchema = z
   .object({
     direct: ReplyToModeSchema.optional(),
     group: ReplyToModeSchema.optional(),
     channel: ReplyToModeSchema.optional(),
+  })
+  .strict();
+
+const DirectGroupReplyToModeByChatTypeSchema = z
+  .object({
+    direct: ReplyToModeSchema.optional(),
+    group: ReplyToModeSchema.optional(),
   })
   .strict();
 
@@ -969,6 +977,7 @@ export const SlackAccountSchema = z
   .object({
     name: z.string().optional(),
     mode: z.enum(["socket", "http", "relay"]).optional(),
+    enterpriseOrgInstall: z.boolean().optional(),
     socketMode: SlackSocketModeSchema.optional(),
     relay: SlackRelaySchema.optional(),
     signingSecret: SecretInputSchema.optional().register(sensitive),
@@ -1010,7 +1019,7 @@ export const SlackAccountSchema = z
     reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
     reactionAllowlist: z.array(z.union([z.string(), z.number()])).optional(),
     replyToMode: ReplyToModeSchema.optional(),
-    replyToModeByChatType: SlackReplyToModeByChatTypeSchema.optional(),
+    replyToModeByChatType: ReplyToModeByChatTypeSchema.optional(),
     thread: SlackThreadSchema.optional(),
     actions: z
       .object({
@@ -1192,6 +1201,7 @@ export const SignalAccountSchemaBase = z
     ignoreAttachments: z.boolean().optional(),
     ignoreStories: z.boolean().optional(),
     sendReadReceipts: z.boolean().optional(),
+    aliases: z.record(z.string(), z.string()).optional(),
     dmPolicy: DmPolicySchema.optional().default("pairing"),
     allowFrom: z.array(z.union([z.string(), z.number()])).optional(),
     defaultTo: z.string().optional(),
@@ -1207,6 +1217,8 @@ export const SignalAccountSchemaBase = z
     blockStreaming: z.boolean().optional(),
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     mediaMaxMb: z.number().int().positive().optional(),
+    replyToMode: ReplyToModeSchema.optional(),
+    replyToModeByChatType: DirectGroupReplyToModeByChatTypeSchema.optional(),
     reactionNotifications: z.enum(["off", "own", "all", "allowlist"]).optional(),
     reactionAllowlist: z.array(z.union([z.string(), z.number()])).optional(),
     actions: z
@@ -1422,6 +1434,7 @@ const IMessageActionSchema = z
     removeParticipant: z.boolean().optional(),
     leaveGroup: z.boolean().optional(),
     sendAttachment: z.boolean().optional(),
+    polls: z.boolean().optional(),
   })
   .strict()
   .optional();
@@ -1650,13 +1663,14 @@ export const MSTeamsConfigSchema = z
     blockStreamingCoalesce: BlockStreamingCoalesceSchema.optional(),
     mediaAllowHosts: z.array(z.string()).optional(),
     mediaAuthAllowHosts: z.array(z.string()).optional(),
+    graphMediaFallback: z.boolean().optional(),
     requireMention: z.boolean().optional(),
     historyLimit: z.number().int().min(0).optional(),
     dmHistoryLimit: z.number().int().min(0).optional(),
     dms: z.record(z.string(), DmConfigSchema.optional()).optional(),
     replyStyle: MSTeamsReplyStyleSchema.optional(),
     teams: z.record(z.string(), MSTeamsTeamSchema.optional()).optional(),
-    /** Max media size in MB (default: 100MB for OneDrive upload support). */
+    /** Max inbound and outbound media size in MB (default: 100MB). */
     mediaMaxMb: z.number().positive().optional(),
     /** SharePoint site ID for file uploads in group chats/channels (e.g., "contoso.sharepoint.com,guid1,guid2") */
     sharePointSiteId: z.string().optional(),

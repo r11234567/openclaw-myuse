@@ -19,12 +19,14 @@ import type {
 } from "./commands-types.js";
 
 const NAME_COMMAND_PREFIX = "/name";
+const CHANGE_COMMAND_PREFIX = "/change";
 
 export function parseNameCommand(raw: string): { title: string } | null {
   const trimmed = raw.trim();
   const commandEnd = trimmed.search(/\s/);
   const commandToken = commandEnd === -1 ? trimmed : trimmed.slice(0, commandEnd);
-  if (normalizeOptionalLowercaseString(commandToken) !== NAME_COMMAND_PREFIX) {
+  const normalizedCommand = normalizeOptionalLowercaseString(commandToken);
+  if (normalizedCommand !== NAME_COMMAND_PREFIX && normalizedCommand !== CHANGE_COMMAND_PREFIX) {
     return null;
   }
   const argText = commandEnd === -1 ? "" : trimmed.slice(commandEnd).trim();
@@ -83,7 +85,8 @@ export const handleNameCommand: CommandHandler = async (params, allowTextCommand
       getSessionEntry({ sessionKey: params.sessionKey, storePath: params.storePath }) ??
       params.sessionEntry;
     const current = normalizeOptionalString(entry?.label);
-    const suggestion = deriveSessionTitle(entry);
+    const suggestionEntry = entry ? { ...entry, label: undefined } : undefined;
+    const suggestion = deriveSessionTitle(suggestionEntry);
     const lines: string[] = [];
     lines.push(
       current ? `Current session name: ${current}` : "This session has no custom name yet.",
@@ -91,7 +94,7 @@ export const handleNameCommand: CommandHandler = async (params, allowTextCommand
     if (suggestion && suggestion !== current) {
       lines.push(`Suggested name: ${suggestion}`);
     }
-    lines.push("Use /name <title> to set a name (mirrors the session manager).");
+    lines.push("Use /name <title> or /change <title> to set a name (mirrors the session manager).");
     return nameReply(lines.join("\n"));
   }
 

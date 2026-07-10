@@ -50,14 +50,11 @@ export type GatewaySessionRow = {
   subagentControlScope?: SessionEntry["subagentControlScope"];
   kind: "direct" | "group" | "global" | "unknown";
   label?: string;
+  /** User-defined organization bucket; unrelated to chat-group kind/groupChannel. */
+  category?: string;
   displayName?: string;
   derivedTitle?: string;
   lastMessagePreview?: string;
-  archived?: boolean;
-  archivedAt?: number;
-  archiveReason?: SessionEntry["archiveReason"];
-  activeSessionKey?: string;
-  sessionShortCode?: string;
   channel?: string;
   subject?: string;
   groupChannel?: string;
@@ -65,6 +62,13 @@ export type GatewaySessionRow = {
   chatType?: ChatType;
   origin?: SessionEntry["origin"];
   updatedAt: number | null;
+  archived?: boolean;
+  archivedAt?: number;
+  pinned?: boolean;
+  pinnedAt?: number;
+  unread?: boolean;
+  lastReadAt?: number;
+  lastActivityAt?: number;
   sessionId?: string;
   systemSent?: boolean;
   abortedLastRun?: boolean;
@@ -89,6 +93,7 @@ export type GatewaySessionRow = {
   estimatedCostUsd?: number;
   status?: SessionRunStatus;
   hasActiveRun?: boolean;
+  activeRunIds?: string[];
   subagentRunState?: SubagentRunState;
   hasActiveSubagentRun?: boolean;
   startedAt?: number;

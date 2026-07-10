@@ -150,10 +150,6 @@ export function resolveTelegramAccount(params: {
 
   const resolve = (accountId: string) => {
     const merged = mergeTelegramAccountConfig(params.cfg, accountId);
-    const envAllowFrom = resolveTelegramAllowFromEnv(merged);
-    const config = envAllowFrom.length
-      ? { ...merged, allowFrom: [...(merged.allowFrom ?? []), ...envAllowFrom] }
-      : merged;
     const accountEnabled = merged.enabled !== false;
     const enabled = baseEnabled && accountEnabled;
     const tokenResolution = resolveTelegramToken(params.cfg, { accountId });
@@ -168,38 +164,18 @@ export function resolveTelegramAccount(params: {
       name: normalizeOptionalString(merged.name),
       token: tokenResolution.token,
       tokenSource: tokenResolution.source,
-      config,
+      config: merged,
     } satisfies ResolvedTelegramAccount;
   };
 
-  // If accountId is omitted, prefer a configured account token over failing on
-  // the implicit "default" account. This keeps env-based setups working while
-  // making config-only tokens work for things like heartbeats.
+  const resolvedAccountId = params.accountId ?? resolveDefaultTelegramAccountId(params.cfg);
   return resolveAccountWithDefaultFallback({
-    accountId: params.accountId,
+    accountId: resolvedAccountId,
     normalizeAccountId,
     resolvePrimary: resolve,
     hasCredential: (account) => account.tokenSource !== "none",
     resolveDefaultAccountId: () => resolveDefaultTelegramAccountId(params.cfg),
   });
-}
-
-function resolveTelegramAllowFromEnv(config: TelegramAccountConfig): Array<string | number> {
-  const envNames = Array.isArray(config.allowFromEnv) ? config.allowFromEnv : [];
-  const values: Array<string | number> = [];
-  for (const envName of envNames) {
-    const raw = process.env[envName];
-    if (!raw) {
-      continue;
-    }
-    for (const entry of raw.split(/[\s,]+/)) {
-      const trimmed = entry.trim();
-      if (trimmed) {
-        values.push(trimmed);
-      }
-    }
-  }
-  return values;
 }
 
 export function listEnabledTelegramAccounts(cfg: OpenClawConfig): ResolvedTelegramAccount[] {

@@ -514,6 +514,7 @@ const sessionBindingContractEntries: Record<
       bindSupported: true,
       unbindSupported: true,
       placements: ["current", "child"],
+      archiveCurrentSessionOnNew: true,
     },
     getCapabilities: async () => {
       const { createTelegramThreadBindingManager } =

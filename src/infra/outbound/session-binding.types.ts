@@ -74,4 +74,6 @@ export type SessionBindingCapabilities = {
   bindSupported: boolean;
   unbindSupported: boolean;
   placements: SessionBindingPlacement[];
+  /** Preserve the current row as archived and bind /new to a separate session row. */
+  archiveCurrentSessionOnNew?: boolean;
 };

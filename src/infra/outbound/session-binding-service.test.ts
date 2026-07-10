@@ -278,6 +278,7 @@ describe("session binding service", () => {
       accountId: "default",
       capabilities: {
         placements: ["current", "child"],
+        archiveCurrentSessionOnNew: true,
       },
       bind: async (input) => createRecord(input),
       listBySession: () => [],
@@ -299,6 +300,7 @@ describe("session binding service", () => {
       bindSupported: true,
       unbindSupported: true,
       placements: ["current", "child"],
+      archiveCurrentSessionOnNew: true,
     });
     expect(unknown).toEqual({
       adapterAvailable: false,

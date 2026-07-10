@@ -16,6 +16,7 @@ export type TelegramMediaRef = {
   path: string;
   contentType?: string;
   stickerMetadata?: StickerMetadata;
+  sourceMessageId?: string;
 };
 
 export type TelegramMessageContextOptions = {
@@ -25,6 +26,8 @@ export type TelegramMessageContextOptions = {
   receivedAtMs?: number;
   ingressBuffer?: "inbound-debounce" | "text-fragment";
   promptContextMinTimestampMs?: number;
+  promptContextAmbientWatermark?: TelegramAmbientTranscriptWatermark;
+  ambientTranscriptBody?: string;
   spooledReplay?: boolean;
 };
 
@@ -32,13 +35,19 @@ export type TelegramPromptContextEntry = NonNullable<
   MsgContext["UntrustedStructuredContext"]
 >[number];
 
+export type TelegramAmbientTranscriptWatermark = {
+  messageId: string;
+  timestampMs?: number;
+};
+
 export type TelegramLogger = {
   info: (obj: Record<string, unknown>, msg: string) => void;
 };
 
 type ResolveTelegramGroupConfig = (
   chatId: string | number,
-  messageThreadId?: number,
+  messageThreadId: number | undefined,
+  cfg: OpenClawConfig,
 ) => {
   groupConfig?: TelegramGroupConfig | TelegramDirectConfig;
   topicConfig?: TelegramTopicConfig;
@@ -49,17 +58,15 @@ type ResolveGroupActivation = (params: {
   agentId?: string;
   messageThreadId?: number;
   sessionKey?: string;
+  cfg: OpenClawConfig;
 }) => boolean | undefined;
 
-type ResolveGroupRequireMention = (chatId: string | number) => boolean;
+type ResolveGroupRequireMention = (chatId: string | number, cfg: OpenClawConfig) => boolean;
 
 type TelegramMessageContextRuntimeOverrides = Partial<
   Pick<
     typeof import("./bot-message-context.runtime.js"),
-    | "createStatusReactionController"
-    | "ensureConfiguredBindingRouteReady"
-    | "getRuntimeConfig"
-    | "recordChannelActivity"
+    "createStatusReactionController" | "ensureConfiguredBindingRouteReady" | "recordChannelActivity"
   >
 >;
 
@@ -69,6 +76,8 @@ export type TelegramMessageContextSessionRuntimeOverrides = Partial<
     | "buildChannelInboundEventContext"
     | "readSessionUpdatedAt"
     | "recordInboundSession"
+    | "readAmbientTranscriptWatermark"
+    | "resolveAmbientTranscriptWatermarkKey"
     | "resolveInboundLastRouteSessionKey"
     | "resolvePinnedMainDmOwnerFromAllowlist"
     | "resolveStorePath"
@@ -96,7 +105,6 @@ export type BuildTelegramMessageContextParams = {
   resolveGroupActivation: ResolveGroupActivation;
   resolveGroupRequireMention: ResolveGroupRequireMention;
   resolveTelegramGroupConfig: ResolveTelegramGroupConfig;
-  loadFreshConfig?: () => OpenClawConfig;
   runtime?: TelegramMessageContextRuntimeOverrides;
   sessionRuntime?: TelegramMessageContextSessionRuntimeOverrides;
   upsertPairingRequest?: typeof import("openclaw/plugin-sdk/conversation-runtime").upsertChannelPairingRequest;

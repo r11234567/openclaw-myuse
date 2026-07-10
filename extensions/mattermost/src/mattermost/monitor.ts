@@ -24,6 +24,7 @@ import {
   normalizeTrimmedStringList,
   uniqueStrings,
 } from "openclaw/plugin-sdk/string-coerce-runtime";
+import { truncateUtf16Safe } from "openclaw/plugin-sdk/text-utility-runtime";
 import { getMattermostRuntime } from "../runtime.js";
 import {
   resolveMattermostAccount,
@@ -73,7 +74,11 @@ import {
   shouldDropEmptyMattermostBody,
 } from "./monitor-helpers.js";
 import { resolveOncharPrefixes, stripOncharPrefix } from "./monitor-onchar.js";
-import { createMattermostMonitorResources, type MattermostMediaInfo } from "./monitor-resources.js";
+import {
+  createMattermostMonitorResources,
+  formatMattermostInboundMediaText,
+  type MattermostMediaInfo,
+} from "./monitor-resources.js";
 import { registerMattermostMonitorSlashCommands } from "./monitor-slash.js";
 import {
   createMattermostConnectOnce,
@@ -131,7 +136,7 @@ export type {
   MattermostRequireMentionResolverInput,
 } from "./monitor-gating.js";
 
-export type MonitorMattermostOpts = {
+type MonitorMattermostOpts = {
   botToken?: string;
   baseUrl?: string;
   accountId?: string;
@@ -274,10 +279,12 @@ export function resolveMattermostReplyRootId(params: {
   threadRootId?: string;
   replyToId?: string;
 }): string | undefined {
-  if (params.kind === "direct") {
+  const threadRootId = normalizeOptionalString(params.threadRootId);
+  // Flat DMs (no thread context) get no reply root. A DM carries a threadRootId
+  // only when its effective per-chat-type mode enables threading.
+  if (params.kind === "direct" && !threadRootId) {
     return undefined;
   }
-  const threadRootId = normalizeOptionalString(params.threadRootId);
   if (threadRootId) {
     return threadRootId;
   }
@@ -439,7 +446,9 @@ export function resolveMattermostEffectiveReplyToId(params: {
   replyToMode: "off" | "first" | "all" | "batched";
   threadRootId?: string | null;
 }): string | undefined {
-  if (params.kind === "direct") {
+  // Flat DMs never thread. Opted-in DMs use the same thread-root logic as rooms;
+  // replyToMode already reflects the effective per-chat-type mode.
+  if (params.kind === "direct" && params.replyToMode === "off") {
     return undefined;
   }
   const threadRootId = normalizeOptionalString(params.threadRootId);
@@ -473,13 +482,24 @@ export function resolveMattermostThreadSessionContext(params: {
   const threadKeys = resolveThreadSessionKeys({
     baseSessionKey: params.baseSessionKey,
     threadId: effectiveReplyToId,
-    parentSessionKey: effectiveReplyToId ? params.baseSessionKey : undefined,
+    // DM threads start fresh; room threads inherit their base session.
+    parentSessionKey:
+      effectiveReplyToId && params.kind !== "direct" ? params.baseSessionKey : undefined,
   });
   return {
     effectiveReplyToId,
     sessionKey: threadKeys.sessionKey,
     parentSessionKey: threadKeys.parentSessionKey,
   };
+}
+
+export function resolveMattermostPendingHistoryKey(params: {
+  kind: ChatType;
+  sessionKey: string;
+}): string | null {
+  // DMs always dispatch immediately, so they do not need the pending-room
+  // history window. Keeping them out also avoids one empty bucket per DM thread.
+  return params.kind === "direct" ? null : params.sessionKey;
 }
 
 export function resolveMattermostReactionChannelId(
@@ -1454,7 +1474,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
           threadRootId,
         });
         const { effectiveReplyToId, sessionKey, parentSessionKey } = threadContext;
-        const historyKey = kind === "direct" ? null : sessionKey;
+        const historyKey = resolveMattermostPendingHistoryKey({ kind, sessionKey });
 
         const mentionRegexes = core.channel.mentions.buildMentionRegexes(cfg, route.agentId);
         const wasMentioned =
@@ -1538,10 +1558,17 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
           recordPendingHistory();
           return;
         }
-        const mediaList = await resolveMattermostMedia(post.file_ids);
+        const fileIds = uniqueStrings(normalizeTrimmedStringList(post.file_ids ?? []));
+        const mediaList = await resolveMattermostMedia(fileIds);
         const mediaPlaceholder = buildMattermostAttachmentPlaceholder(mediaList);
         const bodySource = oncharTriggered ? oncharResult.stripped : rawText;
-        const baseText = [bodySource, mediaPlaceholder].filter(Boolean).join("\n").trim();
+        const downloadedText = [bodySource, mediaPlaceholder].filter(Boolean).join("\n").trim();
+        const baseText = formatMattermostInboundMediaText({
+          body: downloadedText,
+          mediaPlaceholder,
+          expectedCount: fileIds.length,
+          mediaCount: mediaList.length,
+        });
         const bodyText = normalizeMention(baseText, botUsername);
         if (shouldDropEmptyMattermostBody({ bodyText, rawText: rawPostText, botUsername })) {
           logVerboseMessage(
@@ -1612,7 +1639,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
           Body: combinedBody,
           BodyForAgent: bodyForAgent,
           InboundHistory: inboundHistory,
-          RawBody: bodyText,
+          RawBody: commandBody,
           CommandBody: commandBody,
           BodyForCommands: commandBody,
           From:
@@ -1666,7 +1693,7 @@ export async function monitorMattermostProvider(opts: MonitorMattermostOpts = {}
           agentId: route.agentId,
         });
 
-        const previewLine = bodyText.slice(0, 200).replace(/\n/g, "\\n");
+        const previewLine = truncateUtf16Safe(bodyText, 200).replace(/\n/g, "\\n");
         logVerboseMessage(
           `mattermost inbound: from=${ctxPayload.From} len=${bodyText.length} preview="${previewLine}"`,
         );
