@@ -115,7 +115,7 @@ function buildSessionHistoryItems(params: {
           "Untitled session",
       };
     })
-    .sort((left, right) => {
+    .toSorted((left, right) => {
       if (left.key === params.currentSessionKey) {
         return -1;
       }

@@ -1093,6 +1093,7 @@ async function initSessionStateAttemptLocked(
       });
       throw new Error(
         `failed to bind new conversation session (binding restored=${rebound}, store restored=${rolledBack}): ${String(error)}`,
+        { cause: error },
       );
     }
   }
