@@ -1101,10 +1101,7 @@ describe("initSessionState RawBody", () => {
       expect(result.sessionCtx.SessionKey).toBe(result.sessionKey);
       expect(result.bodyStripped).toBe("KeepThisPrompt");
       expect(binding.targetSessionKey).toBe(result.sessionKey);
-      const stored = JSON.parse(await fs.readFile(storePath, "utf8")) as Record<
-        string,
-        SessionEntry
-      >;
+      const stored = readSessionStoreFast(storePath);
       expect(stored[sourceSessionKey]).toMatchObject({
         sessionId: sourceSessionId,
         sessionFile: sourceTranscript,
