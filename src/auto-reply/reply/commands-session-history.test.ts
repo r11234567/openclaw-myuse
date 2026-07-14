@@ -14,15 +14,15 @@ vi.mock("../../config/sessions/session-accessor.js", () => ({
     Object.entries(hoisted.store).map(([sessionKey, entry]) => ({ sessionKey, entry })),
   applySessionEntryReplacements: async (params: {
     sessionKeys?: string[];
-    update: (
-      entries: Array<{ sessionKey: string; entry: SessionEntry }>,
-    ) => Promise<{
-      result: unknown;
-      replacements?: Array<{ sessionKey: string; entry: SessionEntry }>;
-    }> | {
-      result: unknown;
-      replacements?: Array<{ sessionKey: string; entry: SessionEntry }>;
-    };
+    update: (entries: Array<{ sessionKey: string; entry: SessionEntry }>) =>
+      | Promise<{
+          result: unknown;
+          replacements?: Array<{ sessionKey: string; entry: SessionEntry }>;
+        }>
+      | {
+          result: unknown;
+          replacements?: Array<{ sessionKey: string; entry: SessionEntry }>;
+        };
   }) => {
     const keys = params.sessionKeys ?? Object.keys(hoisted.store);
     const operation = await params.update(

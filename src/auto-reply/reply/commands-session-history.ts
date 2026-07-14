@@ -272,12 +272,10 @@ export async function handleSessionHistoryCommand(
     };
   }
 
-  let previousEntries:
-    | {
-        previous: { current: SessionEntry; target: SessionEntry };
-        switched: { current: SessionEntry; target: SessionEntry };
-      }
-    | null;
+  let previousEntries: {
+    previous: { current: SessionEntry; target: SessionEntry };
+    switched: { current: SessionEntry; target: SessionEntry };
+  } | null;
   try {
     previousEntries = await applySessionEntryReplacements({
       activeSessionKey: target.key,
@@ -352,7 +350,10 @@ export async function handleSessionHistoryCommand(
         update: (entries) => {
           const entriesByKey = new Map(entries.map((item) => [item.sessionKey, item.entry]));
           if (
-            !isDeepStrictEqual(entriesByKey.get(currentSessionKey), previousEntries.switched.current) ||
+            !isDeepStrictEqual(
+              entriesByKey.get(currentSessionKey),
+              previousEntries.switched.current,
+            ) ||
             !isDeepStrictEqual(entriesByKey.get(target.key), previousEntries.switched.target)
           ) {
             return { result: false };
