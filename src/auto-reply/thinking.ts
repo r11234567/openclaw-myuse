@@ -99,12 +99,15 @@ function resolveThinkingPolicyContext(params: {
   };
 }
 
-function catalogSupportsXHigh(compat: ThinkingCatalogEntry["compat"]): boolean {
+function catalogThinkingLevels(compat: ThinkingCatalogEntry["compat"]): ThinkLevel[] {
   const efforts = compat?.supportedReasoningEfforts;
   if (!Array.isArray(efforts)) {
-    return false;
+    return [];
   }
-  return efforts.some((effort) => normalizeThinkLevel(effort) === "xhigh");
+  return efforts.flatMap((effort) => {
+    const normalized = normalizeThinkLevel(effort);
+    return normalized ? [normalized] : [];
+  });
 }
 
 function normalizeProfileLevel(
@@ -236,8 +239,10 @@ export function resolveThinkingProfile(params: {
     binaryDecision === true
       ? buildBinaryThinkingProfile(defaultLevel)
       : buildBaseThinkingProfile(defaultLevel);
-  if (binaryDecision !== true && catalogSupportsXHigh(context.compat)) {
-    appendProfileLevel(profile, "xhigh");
+  if (binaryDecision !== true) {
+    for (const level of catalogThinkingLevels(context.compat)) {
+      appendProfileLevel(profile, level);
+    }
   }
   const policyContext = {
     provider: context.normalizedProvider,

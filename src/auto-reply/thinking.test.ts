@@ -570,20 +570,22 @@ describe("listThinkingLevels", () => {
     ).toBe("low");
   });
 
-  it("uses catalog compat reasoning efforts to expose xhigh for configured custom models", () => {
+  it("uses catalog compat reasoning efforts to expose extended levels for configured custom models", () => {
     const catalog = [
       {
         provider: "gmn",
         id: "gpt-5.4",
         name: "GPT 5.4 via GMN",
         reasoning: true,
-        compat: { supportedReasoningEfforts: ["low", "medium", "high", "xhigh"] },
+        compat: {
+          supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
+        },
       },
     ];
 
     expect(listThinkingLevels("gmn", "gpt-5.4", catalog)).toContain("xhigh");
     expect(formatThinkingLevels("gmn", "gpt-5.4", ", ", catalog)).toBe(
-      "off, minimal, low, medium, high, xhigh",
+      "off, minimal, low, medium, high, xhigh, max, ultra",
     );
     expect(
       isThinkingLevelSupported({
