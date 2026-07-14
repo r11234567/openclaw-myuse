@@ -9,8 +9,36 @@ const hoisted = vi.hoisted(() => ({
   store: {} as Record<string, SessionEntry>,
 }));
 
-vi.mock("../../config/sessions.js", () => ({
-  loadSessionStore: () => hoisted.store,
+vi.mock("../../config/sessions/session-accessor.js", () => ({
+  listSessionEntries: () =>
+    Object.entries(hoisted.store).map(([sessionKey, entry]) => ({ sessionKey, entry })),
+  applySessionEntryReplacements: async (params: {
+    sessionKeys?: string[];
+    update: (
+      entries: Array<{ sessionKey: string; entry: SessionEntry }>,
+    ) => Promise<{
+      result: unknown;
+      replacements?: Array<{ sessionKey: string; entry: SessionEntry }>;
+    }> | {
+      result: unknown;
+      replacements?: Array<{ sessionKey: string; entry: SessionEntry }>;
+    };
+  }) => {
+    const keys = params.sessionKeys ?? Object.keys(hoisted.store);
+    const operation = await params.update(
+      keys.flatMap((sessionKey) => {
+        const entry = hoisted.store[sessionKey];
+        return entry ? [{ sessionKey, entry: { ...entry } }] : [];
+      }),
+    );
+    for (const replacement of operation.replacements ?? []) {
+      hoisted.store[replacement.sessionKey] = { ...replacement.entry };
+    }
+    return operation.result;
+  },
+}));
+
+vi.mock("../../config/sessions/store.js", () => ({
   resolveSessionStoreEntry: ({
     store,
     sessionKey,
@@ -22,10 +50,6 @@ vi.mock("../../config/sessions.js", () => ({
     normalizedKey: sessionKey,
     legacyKeys: [],
   }),
-  updateSessionStore: async (
-    _storePath: string,
-    mutator: (store: Record<string, SessionEntry>) => unknown,
-  ) => await mutator(hoisted.store),
 }));
 
 vi.mock("../../gateway/session-transcript-readers.js", () => ({

@@ -766,12 +766,11 @@ async function consumeChatStream(
 
   finishCurrentBlock(currentBlock);
   for (const index of toolBlockIdentities.keys()) {
-    const block = output.content[index];
-    if (block.type !== "toolCall") {
+    const block = output.content.at(index);
+    if (block?.type !== "toolCall") {
       continue;
     }
     const toolBlock = block as ToolCall & { partialArgs?: string };
-    toolBlock.arguments = parseStreamingJson(toolBlock.partialArgs);
     // Finalize in-place and strip the scratch buffer so replay only
     // carries parsed arguments.
     delete toolBlock.partialArgs;

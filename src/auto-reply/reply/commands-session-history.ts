@@ -1,15 +1,16 @@
 // Lists and switches archived conversation sessions through the shared binding service.
 import { createHash } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import {
   normalizeOptionalLowercaseString,
   normalizeOptionalString,
 } from "@openclaw/normalization-core/string-coerce";
 import {
-  loadSessionStore,
-  resolveSessionStoreEntry,
-  updateSessionStore,
-  type SessionEntry,
-} from "../../config/sessions.js";
+  applySessionEntryReplacements,
+  listSessionEntries,
+} from "../../config/sessions/session-accessor.js";
+import { resolveSessionStoreEntry } from "../../config/sessions/store.js";
+import type { SessionEntry } from "../../config/sessions/types.js";
 import { readSessionTitleFieldsFromTranscript } from "../../gateway/session-transcript-readers.js";
 import { deriveSessionTitle } from "../../gateway/session-utils.js";
 import { logVerbose } from "../../globals.js";
@@ -198,7 +199,12 @@ export async function handleSessionHistoryCommand(
 
   const activeBinding = sessionBindingService.resolveByConversation(bindingContext);
   const activeSessionKey = activeBinding?.targetSessionKey ?? params.sessionKey;
-  const store = loadSessionStore(params.storePath, { skipCache: true });
+  const store = Object.fromEntries(
+    listSessionEntries({ storePath: params.storePath }).map(({ sessionKey, entry }) => [
+      sessionKey,
+      entry,
+    ]),
+  );
   const active = resolveSessionStoreEntry({ store, sessionKey: activeSessionKey });
   if (!active.existing) {
     return {
@@ -266,23 +272,54 @@ export async function handleSessionHistoryCommand(
     };
   }
 
-  const previousEntries = await updateSessionStore(params.storePath, (currentStore) => {
-    const currentEntry = currentStore[currentSessionKey];
-    const targetEntry = currentStore[target.key];
-    if (!currentEntry || !targetEntry) {
-      return null;
-    }
-    const snapshots = {
-      current: { ...currentEntry },
-      target: { ...targetEntry },
-    };
-    currentEntry.archivedAt ??= Date.now();
-    delete currentEntry.pinnedAt;
-    delete targetEntry.archivedAt;
-    currentStore[currentSessionKey] = currentEntry;
-    currentStore[target.key] = targetEntry;
-    return snapshots;
-  });
+  let previousEntries:
+    | {
+        previous: { current: SessionEntry; target: SessionEntry };
+        switched: { current: SessionEntry; target: SessionEntry };
+      }
+    | null;
+  try {
+    previousEntries = await applySessionEntryReplacements({
+      activeSessionKey: target.key,
+      requireWriteSuccess: true,
+      sessionKeys: [currentSessionKey, target.key],
+      storePath: params.storePath,
+      update: (entries) => {
+        const entriesByKey = new Map(entries.map((item) => [item.sessionKey, item.entry]));
+        const currentEntry = entriesByKey.get(currentSessionKey);
+        const targetEntry = entriesByKey.get(target.key);
+        if (!currentEntry || !targetEntry) {
+          return { result: null };
+        }
+        const currentReplacement = {
+          ...currentEntry,
+          archivedAt: currentEntry.archivedAt ?? Date.now(),
+        };
+        delete currentReplacement.pinnedAt;
+        const targetReplacement = { ...targetEntry };
+        delete targetReplacement.archivedAt;
+        return {
+          result: {
+            previous: {
+              current: { ...currentEntry },
+              target: { ...targetEntry },
+            },
+            switched: {
+              current: currentReplacement,
+              target: targetReplacement,
+            },
+          },
+          replacements: [
+            { sessionKey: currentSessionKey, entry: currentReplacement },
+            { sessionKey: target.key, entry: targetReplacement },
+          ],
+        };
+      },
+    });
+  } catch (error) {
+    logVerbose(`session switch row update failed: ${String(error)}`);
+    previousEntries = null;
+  }
   if (!previousEntries) {
     return {
       shouldContinue: false,
@@ -305,10 +342,33 @@ export async function handleSessionHistoryCommand(
       },
     });
   } catch (error) {
-    await updateSessionStore(params.storePath, (currentStore) => {
-      currentStore[currentSessionKey] = previousEntries.current;
-      currentStore[target.key] = previousEntries.target;
-    });
+    let rowsRestored = false;
+    try {
+      rowsRestored = await applySessionEntryReplacements({
+        activeSessionKey: currentSessionKey,
+        requireWriteSuccess: true,
+        sessionKeys: [currentSessionKey, target.key],
+        storePath: params.storePath,
+        update: (entries) => {
+          const entriesByKey = new Map(entries.map((item) => [item.sessionKey, item.entry]));
+          if (
+            !isDeepStrictEqual(entriesByKey.get(currentSessionKey), previousEntries.switched.current) ||
+            !isDeepStrictEqual(entriesByKey.get(target.key), previousEntries.switched.target)
+          ) {
+            return { result: false };
+          }
+          return {
+            result: true,
+            replacements: [
+              { sessionKey: currentSessionKey, entry: previousEntries.previous.current },
+              { sessionKey: target.key, entry: previousEntries.previous.target },
+            ],
+          };
+        },
+      });
+    } catch {
+      // A concurrent row change is safer to preserve than overwrite during rollback.
+    }
     try {
       await sessionBindingService.bind({
         targetSessionKey: currentSessionKey,
@@ -323,7 +383,11 @@ export async function handleSessionHistoryCommand(
     logVerbose(`session switch binding failed: ${String(error)}`);
     return {
       shouldContinue: false,
-      reply: { text: "Failed to switch the conversation binding; the prior session was restored." },
+      reply: {
+        text: rowsRestored
+          ? "Failed to switch the conversation binding; the prior session was restored."
+          : "Failed to switch the conversation binding; session rows changed concurrently and were left untouched.",
+      },
     };
   }
   return {
