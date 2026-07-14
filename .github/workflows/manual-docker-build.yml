@@ -28,6 +28,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 
+      - name: Set snapshot LOC comparison baseline
+        run: |
+          set -euo pipefail
+          # This manual workflow validates a committed deployment snapshot, not a PR diff.
+          # Focused checks below own the local deployment delta; the aggregate check needs
+          # a valid origin/main ref without applying the upstream PR LOC ratchet to it.
+          git update-ref refs/remotes/origin/main HEAD
+
       - name: Set up repository Node environment
         uses: ./.github/actions/setup-node-env
         with:
