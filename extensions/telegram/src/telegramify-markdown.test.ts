@@ -122,6 +122,7 @@ describe.skipIf(!telegramifyAvailable)("telegramify-markdown rich conversion", (
     const html = chunks?.join("") ?? "";
     expect(chunks).not.toBeNull();
     expect(html).toContain("<hr>");
+    expect(html).not.toContain("<hr/>");
     expect(html.match(/&lt;hr\/&gt;/gu)).toHaveLength(2);
     expect(html).toContain("<code>&lt;hr/&gt;</code>");
   });

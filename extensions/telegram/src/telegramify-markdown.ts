@@ -10,7 +10,7 @@ const LEGACY_TELEGRAM_MATH_RE =
   /<tg-math-block>([\s\S]*?)<\/tg-math-block>|<tg-math>([\s\S]*?)<\/tg-math>/giu;
 const BRACKET_MATH_RE = /(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]|(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)/gu;
 const DISPLAY_DOLLAR_MATH_RE = /(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$/gu;
-const TELEGRAMIFY_ESCAPED_HORIZONTAL_RULE_RE = /&lt;hr\s*\/?&gt;/giu;
+const TELEGRAMIFY_SELF_CLOSING_HORIZONTAL_RULE_RE = /<hr\s*\/>/giu;
 const TELEGRAMIFY_LITERAL_HTML_TAG_RE = /<\/?(?:code|pre|tg-math|tg-math-block)\b[^>]*>/giu;
 const TELEGRAMIFY_SCRIPT = [
   "import json, sys",
@@ -63,7 +63,7 @@ function normalizeTelegramifyMathDelimiters(markdown: string): string {
   );
 }
 
-function restoreTelegramifyHorizontalRules(html: string): string {
+function normalizeTelegramifyHorizontalRules(html: string): string {
   let output = "";
   let cursor = 0;
   let literalDepth = 0;
@@ -72,7 +72,9 @@ function restoreTelegramifyHorizontalRules(html: string): string {
     const tag = match[0];
     const segment = html.slice(cursor, start);
     output +=
-      literalDepth > 0 ? segment : segment.replace(TELEGRAMIFY_ESCAPED_HORIZONTAL_RULE_RE, "<hr>");
+      literalDepth > 0
+        ? segment
+        : segment.replace(TELEGRAMIFY_SELF_CLOSING_HORIZONTAL_RULE_RE, "<hr>");
     output += tag;
     literalDepth = tag.startsWith("</") ? Math.max(0, literalDepth - 1) : literalDepth + 1;
     cursor = start + tag.length;
@@ -80,7 +82,7 @@ function restoreTelegramifyHorizontalRules(html: string): string {
   const tail = html.slice(cursor);
   return (
     output +
-    (literalDepth > 0 ? tail : tail.replace(TELEGRAMIFY_ESCAPED_HORIZONTAL_RULE_RE, "<hr>"))
+    (literalDepth > 0 ? tail : tail.replace(TELEGRAMIFY_SELF_CLOSING_HORIZONTAL_RULE_RE, "<hr>"))
   );
 }
 
@@ -148,7 +150,7 @@ export function telegramifyMarkdownToRichHtmlChunks(markdown: string): readonly 
       ) {
         throw new TypeError("converter chunk does not contain HTML");
       }
-      return restoreTelegramifyHorizontalRules((item as { html: string }).html);
+      return normalizeTelegramifyHorizontalRules((item as { html: string }).html);
     });
     cacheConversion(markdown, chunks);
     return chunks;
