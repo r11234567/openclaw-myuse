@@ -1,4 +1,5 @@
 // Control UI module implements markdown behavior.
+import { katex } from "@mdit/plugin-katex";
 import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/core";
 import bash from "highlight.js/lib/languages/bash";
@@ -17,6 +18,7 @@ import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import MarkdownIt from "markdown-it";
 import markdownItTaskLists from "markdown-it-task-lists";
+import "katex/dist/katex.min.css";
 import remend, { type RemendOptions } from "remend";
 import { stripUnsupportedCitationControlMarkers } from "../../../src/shared/text/citation-control-markers.js";
 import { routeIdFromPath } from "../app-route-paths.ts";
@@ -28,6 +30,7 @@ import { normalizeLowercaseStringOrEmpty } from "../lib/string-coerce.ts";
 
 const allowedTags = [
   "a",
+  "annotation",
   "b",
   "blockquote",
   "br",
@@ -45,6 +48,28 @@ const allowedTags = [
   "i",
   "input",
   "li",
+  "math",
+  "menclose",
+  "mfrac",
+  "mi",
+  "mn",
+  "mo",
+  "mover",
+  "mpadded",
+  "mroot",
+  "mrow",
+  "mspace",
+  "msqrt",
+  "mstyle",
+  "msub",
+  "msubsup",
+  "msup",
+  "mtable",
+  "mtd",
+  "mtext",
+  "mtr",
+  "munder",
+  "munderover",
   "ol",
   "p",
   "pre",
@@ -52,6 +77,7 @@ const allowedTags = [
   "span",
   "strong",
   "summary",
+  "semantics",
   "table",
   "tbody",
   "td",
@@ -79,6 +105,24 @@ const allowedAttrs = [
   "data-file-path",
   "type",
   "aria-label",
+  "aria-hidden",
+  "accent",
+  "accentunder",
+  "columnalign",
+  "columnspacing",
+  "display",
+  "displaystyle",
+  "encoding",
+  "fence",
+  "lspace",
+  "mathvariant",
+  "rowspacing",
+  "rspace",
+  "scriptlevel",
+  "separator",
+  "stretchy",
+  "style",
+  "xmlns",
 ];
 const sanitizeOptions = {
   ALLOWED_TAGS: allowedTags,
@@ -631,6 +675,9 @@ function installHooks() {
   hooksInstalled = true;
 
   DOMPurify.addHook("afterSanitizeAttributes", (node) => {
+    if (node instanceof Element && node.hasAttribute("style") && !node.closest(".katex")) {
+      node.removeAttribute("style");
+    }
     if (!(node instanceof HTMLAnchorElement)) {
       return;
     }
@@ -953,6 +1000,16 @@ const md = new MarkdownIt({
   linkify: true,
 });
 const defaultCodeInlineRenderer = md.renderer.rules.code_inline!;
+
+md.use(katex, {
+  delimiters: "all",
+  mathFence: true,
+  maxExpand: 1000,
+  maxSize: 10,
+  trust: false,
+  throwOnError: false,
+  logger: () => "ignore",
+});
 
 // Enable GFM strikethrough (~~text~~) to match original marked.js behavior.
 // markdown-it uses <s> tags; we added "s" to allowedTags for DOMPurify.
@@ -1325,7 +1382,7 @@ md.renderer.rules.image = (tokens, idx) => {
 };
 
 // Override fenced code blocks with copy button + JSON collapse
-md.renderer.rules.fence = (tokens, idx, _options, env) => {
+md.renderer.rules.fence = (tokens, idx, options, env, self) => {
   const token = tokens[idx];
   if (!token) {
     return "";
@@ -1333,6 +1390,9 @@ md.renderer.rules.fence = (tokens, idx, _options, env) => {
   // token.info contains the full fence info string (e.g., "json title=foo");
   // extract only the first whitespace-separated token as the language.
   const lang = token.info.trim().split(/\s+/)[0] || "";
+  if (lang === "math") {
+    return md.renderer.rules.math_block?.(tokens, idx, options, env, self) ?? "";
+  }
   return renderCodeBlock(token.content, lang, env, {
     copyText: codeBlockCopyTextFromMarkdownToken(token.content),
   });

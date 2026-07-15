@@ -44,10 +44,22 @@ jobs:
           install-deps: "true"
           frozen-lockfile: "true"
 
+      - name: Install Telegram rich Markdown converter
+        run: >-
+          python3 -m pip install
+          pyromark==0.9.13
+          git+https://github.com/sudoskys/telegramify-markdown.git@ad2456037ac1dd3bcd06038915dac45a4430ff23
+
       - name: Check changed-file formatting
         run: >-
           pnpm format:check --
           .github/workflows/manual-docker-build.yml
+          extensions/telegram/src/rich-message.ts
+          extensions/telegram/src/telegramify-markdown.test.ts
+          extensions/telegram/src/telegramify-markdown.ts
+          ui/src/components/markdown.test.ts
+          ui/src/components/markdown.ts
+          ui/src/styles/chat/text.css
           docs/channels/telegram.md
           docs/plugins/sdk-channel-plugins.md
           extensions/telegram/src/thread-bindings.ts
@@ -73,11 +85,12 @@ jobs:
       - name: Check test types
         run: pnpm check:test-types
 
-      - name: Run focused session tests
+      - name: Run focused deployment tests
         env:
           OPENCLAW_VITEST_MAX_WORKERS: "2"
         run: >-
           pnpm test
+          extensions/telegram/src/telegramify-markdown.test.ts
           src/auto-reply/thinking.test.ts
           src/auto-reply/reply/commands-session-history.test.ts
           src/auto-reply/reply/session.test.ts
@@ -85,6 +98,9 @@ jobs:
           src/channels/plugins/contracts/session-binding.registry-backed.contract.test.ts
           src/infra/outbound/session-binding-service.test.ts
           src/infra/outbound/current-conversation-bindings.test.ts
+
+      - name: Run focused Control UI test
+        run: pnpm --dir ui test src/components/markdown.test.ts
 
   build:
     needs: verify
@@ -128,6 +144,7 @@ jobs:
           cache-to: type=gha,mode=max,scope=manual-openclaw-amd64
           build-args: |
             OPENCLAW_EXTENSIONS=diagnostics-otel,codex,searxng,google,qqbot
+            OPENCLAW_IMAGE_PIP_PACKAGES=pyromark==0.9.13 git+https://github.com/sudoskys/telegramify-markdown.git@ad2456037ac1dd3bcd06038915dac45a4430ff23
           tags: |
             ${{ steps.image.outputs.tags }}
             ${{ steps.image.outputs.sha_tag }}

@@ -107,6 +107,33 @@
   font-size: 0.9em;
 }
 
+.chat-text :where(.katex) {
+  max-width: 100%;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.chat-text :where(.katex-display) {
+  max-width: 100%;
+  margin: 0.75em 0 0;
+  padding: 0.15em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.chat-text :where(.katex-display > .katex) {
+  display: inline-block;
+  min-width: 100%;
+  width: max-content;
+  white-space: nowrap;
+}
+
+.chat-text :where(.katex-error) {
+  color: var(--danger);
+  font-family: var(--mono);
+  white-space: pre-wrap;
+}
+
 .chat-text :where(.markdown-inline-image) {
   display: block;
   max-width: min(100%, 420px);

@@ -2151,6 +2151,9 @@ importers:
       '@lit/context':
         specifier: 1.1.6
         version: 1.1.6
+      '@mdit/plugin-katex':
+        specifier: 1.0.1
+        version: 1.0.1(markdown-it@14.3.0)
       '@modelcontextprotocol/ext-apps':
         specifier: 1.7.4
         version: 1.7.4(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@4.4.3)
@@ -2187,6 +2190,9 @@ importers:
       json5:
         specifier: 2.2.3
         version: 2.2.3
+      katex:
+        specifier: 0.17.0
+        version: 0.17.0
       lit:
         specifier: 3.3.3
         version: 3.3.3
@@ -3321,6 +3327,33 @@ packages:
   '@matrix-org/matrix-sdk-crypto-wasm@18.3.1':
     resolution: {integrity: sha512-VRjWhE1UgHnPpJ3b9B5+8z71ZC/HICFngPPFIN6ktzmUBKI5RusPujzbAQUoB3CgZ0yU58L99AfSQS4YTztSWw==}
     engines: {node: '>= 18'}
+
+  '@mdit/helper@1.0.1':
+    resolution: {integrity: sha512-zAzShsRZmkqjuoOFg6/zTCYVpvghj9a30Cl/eOGkE0xzRJJJG8T18eqb2lgceQhjVLWHK02HNVkzyfNHc429lQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      markdown-it: ^14.2.0
+    peerDependenciesMeta:
+      markdown-it:
+        optional: true
+
+  '@mdit/plugin-katex@1.0.1':
+    resolution: {integrity: sha512-JQGdKOYGjL9Jr1HQXkJTjZXgUoX8b51f2NvEuoUKdfKE+bYKgYYNCxNkGfrxTjDWAFNAiP5J1kA3vwmxxsR3aA==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      markdown-it: ^14.2.0
+    peerDependenciesMeta:
+      markdown-it:
+        optional: true
+
+  '@mdit/plugin-tex@1.0.1':
+    resolution: {integrity: sha512-ZzU7/ZkkpMvI4+Wxbr22d52LWRy8a+knlDI04wjDWm56ezQMkI7HT5O9x8GBapvFIxjOTVdT/Ie5b4cz+0oHJA==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      markdown-it: ^14.2.0
+    peerDependenciesMeta:
+      markdown-it:
+        optional: true
 
   '@mdx-js/mdx@3.1.1':
     resolution: {integrity: sha512-f6ZO2ifpwAQIpzGWaBQT2TXxPv6z3RBzQKpVftEWN78Vl/YweF1uwussDx8ECAXVtr3Rs89fKyG9YlzUs9DyGQ==}
@@ -5347,6 +5380,10 @@ packages:
     resolution: {integrity: sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg==}
     engines: {node: '>= 6'}
 
+  commander@8.3.0:
+    resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
+    engines: {node: '>= 12'}
+
   composed-offset-position@0.0.6:
     resolution: {integrity: sha512-Q7dLompI6lUwd7LWyIcP66r4WcS9u7AL2h8HaeipiRfCRPLMWqRx8fYsjb4OHi6UQFifO7XtNC2IlEJ1ozIFxw==}
     peerDependencies:
@@ -6234,6 +6271,10 @@ packages:
   jwt-decode@4.0.0:
     resolution: {integrity: sha512-+KJGIyHgkGuIq3IEBNftfhW/LfWhXUIY6OmyVWjliu5KH1y0fw7VQ8YndE2O4qZdMSd9SqbnC8GOcZEy0Om7sA==}
     engines: {node: '>=18'}
+
+  katex@0.17.0:
+    resolution: {integrity: sha512-Vdw0ATsQ9V+LuegM/BTwQqV/6cTl5lbGcIrU+BCgLxyf6bo38ybOr372tuSIxir3CN720flu1meYR6XzNMwQnw==}
+    hasBin: true
 
   keyv@5.6.0:
     resolution: {integrity: sha512-CYDD3SOtsHtyXeEORYRx2qBtpDJFjRTGXUtmNEMGyzYOKj1TE3tycdlho7kA1Ufx9OYWZzg52QFBGALTirzDSw==}
@@ -9657,6 +9698,27 @@ snapshots:
 
   '@matrix-org/matrix-sdk-crypto-wasm@18.3.1': {}
 
+  '@mdit/helper@1.0.1(markdown-it@14.3.0)':
+    dependencies:
+      '@types/markdown-it': 14.1.2
+    optionalDependencies:
+      markdown-it: 14.3.0
+
+  '@mdit/plugin-katex@1.0.1(markdown-it@14.3.0)':
+    dependencies:
+      '@mdit/helper': 1.0.1(markdown-it@14.3.0)
+      '@mdit/plugin-tex': 1.0.1(markdown-it@14.3.0)
+      '@types/markdown-it': 14.1.2
+      katex: 0.17.0
+    optionalDependencies:
+      markdown-it: 14.3.0
+
+  '@mdit/plugin-tex@1.0.1(markdown-it@14.3.0)':
+    dependencies:
+      '@types/markdown-it': 14.1.2
+    optionalDependencies:
+      markdown-it: 14.3.0
+
   '@mdx-js/mdx@3.1.1':
     dependencies:
       '@types/estree': 1.0.9
@@ -11647,6 +11709,8 @@ snapshots:
 
   commander@5.1.0: {}
 
+  commander@8.3.0: {}
+
   composed-offset-position@0.0.6(@floating-ui/utils@0.2.12):
     dependencies:
       '@floating-ui/utils': 0.2.12
@@ -12664,6 +12728,10 @@ snapshots:
       safe-buffer: 5.2.1
 
   jwt-decode@4.0.0: {}
+
+  katex@0.17.0:
+    dependencies:
+      commander: 8.3.0
 
   keyv@5.6.0:
     dependencies:

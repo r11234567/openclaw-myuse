@@ -519,6 +519,43 @@ PY
   });
 
   describe("GFM features", () => {
+    it("renders inline and display LaTeX without losing backslashes", () => {
+      const html = toSanitizedMarkdownHtml(
+        [
+          String.raw`Inline \(\frac{1}{2}\) and $x^2$.`,
+          "",
+          String.raw`\[\begin{array}{cc}a & b \\ c & d\end{array}\]`,
+        ].join("\n"),
+      );
+      const fragment = htmlFragment(html);
+
+      expect(fragment.querySelectorAll(".katex")).toHaveLength(3);
+      expect(fragment.querySelectorAll(".katex-display")).toHaveLength(1);
+      expect(fragment.textContent).toContain("12");
+      const sourceAnnotations = Array.from(
+        fragment.querySelectorAll("annotation"),
+        (annotation) => annotation.textContent ?? "",
+      );
+      expect(sourceAnnotations).toContain(String.raw`\frac{1}{2}`);
+      expect(sourceAnnotations).toContain(
+        String.raw`\begin{array}{cc}a & b \\ c & d\end{array}`,
+      );
+    });
+
+    it("renders math fences as display LaTeX instead of code", () => {
+      const html = toSanitizedMarkdownHtml("```math\nE = mc^2\n```");
+      const fragment = htmlFragment(html);
+
+      expect(fragment.querySelector(".katex-display")).not.toBeNull();
+      expect(fragment.querySelector("pre code")).toBeNull();
+    });
+
+    it("keeps currency-like dollar text literal", () => {
+      const html = toSanitizedMarkdownHtml("The price is $50 and the total is USD 100.");
+
+      expect(html).toBe("<p>The price is $50 and the total is USD 100.</p>\n");
+    });
+
     it("renders strikethrough", () => {
       const html = toSanitizedMarkdownHtml("This is ~~deleted~~ text");
       expect(html).toBe("<p>This is <s>deleted</s> text</p>\n");
@@ -830,6 +867,12 @@ PY
 });
 
 describe("toStreamingMarkdownHtml", () => {
+  it("renders a completed display formula while streaming", () => {
+    const html = toStreamingMarkdownHtml(String.raw`\[\frac{a}{b}\]`);
+
+    expect(htmlFragment(html).querySelector(".katex-display")).not.toBeNull();
+  });
+
   it("renders streaming raw block art without collapsing quiet-zone spaces", () => {
     const blockArt = "  ▀▀▀▀  \n  ▄▄▄▄  \n  ████  ";
     const html = toStreamingMarkdownHtml(blockArt);

@@ -19,6 +19,7 @@ import {
   telegramHtmlToPlainTextFallback,
   type TelegramRichHtmlDegradationReason,
 } from "./format.js";
+import { telegramifyMarkdownToRichHtmlChunks } from "./telegramify-markdown.js";
 
 type TelegramRichMessageReplyMarkup =
   | InlineKeyboardMarkup
@@ -186,7 +187,9 @@ export function buildTelegramRichMarkdownPlan(
     ...options,
     skipEntityDetection: shouldSkipTelegramRichEntityDetection(markdown, options),
   };
-  return buildTelegramRichHtmlPlan(markdownToTelegramRichHtml(markdown, richOptions), richOptions);
+  const telegramified = telegramifyMarkdownToRichHtmlChunks(markdown);
+  const html = telegramified?.join("") ?? markdownToTelegramRichHtml(markdown, richOptions);
+  return buildTelegramRichHtmlPlan(html, richOptions);
 }
 
 export function buildTelegramRichMarkdown(
@@ -442,8 +445,14 @@ export function splitTelegramRichMessageTextChunks(params: {
           );
     return { normalized, skipEntityDetection };
   };
-  const richChunks =
-    params.textMode === "html"
+  const telegramified =
+    params.textMode === "markdown" ? telegramifyMarkdownToRichHtmlChunks(params.text) : null;
+  const richChunks = telegramified
+    ? telegramified.map((html) => ({
+        source: telegramHtmlToPlainTextFallback(html),
+        rendered: renderRichChunk(html, "html"),
+      }))
+    : params.textMode === "html"
       ? [
           {
             source: params.text,
