@@ -79,4 +79,37 @@ describe.skipIf(!telegramifyAvailable)("telegramify-markdown rich conversion", (
     expect(html).toContain("<tg-math>x^2</tg-math>");
     expect(html).toContain("&lt;tg-math&gt;literal&lt;/tg-math&gt;");
   });
+
+  it("keeps standalone equals inside multiline display math", () => {
+    process.env.OPENCLAW_TELEGRAMIFY_MARKDOWN = "1";
+    const chunks = telegramifyMarkdownToRichHtmlChunks(
+      [
+        String.raw`\[`,
+        String.raw`\lim_{x\to0}f(x)`,
+        "=",
+        String.raw`\lim_{x\to0}x\cdot\lim_{x\to0}\frac{f(x)}x`,
+        "=0.",
+        String.raw`\]`,
+        "",
+        "$$",
+        "f(x)",
+        "=",
+        String.raw`f(0)+f'(0)x+\frac12f''(0)x^2+o(x^2).`,
+        "$$",
+      ].join("\n"),
+    );
+
+    const html = chunks?.join("") ?? "";
+    expect(chunks).not.toBeNull();
+    expect(html.match(/<tg-math-block>/gu)).toHaveLength(2);
+    expect(html).toContain(
+      String.raw`<tg-math-block>\lim_{x\to0}f(x) = \lim_{x\to0}x\cdot\lim_{x\to0}\frac{f(x)}x =0.</tg-math-block>`,
+    );
+    expect(html).toContain(
+      String.raw`<tg-math-block>f(x) = f(0)+f'(0)x+\frac12f''(0)x^2+o(x^2).</tg-math-block>`,
+    );
+    expect(html).not.toContain("<h1>");
+    expect(html).not.toContain("&lt;br");
+    expect(html).not.toContain("\t");
+  });
 });

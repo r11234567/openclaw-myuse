@@ -9,6 +9,7 @@ const TELEGRAMIFY_CACHE_LIMIT = 64;
 const LEGACY_TELEGRAM_MATH_RE =
   /<tg-math-block>([\s\S]*?)<\/tg-math-block>|<tg-math>([\s\S]*?)<\/tg-math>/giu;
 const BRACKET_MATH_RE = /(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]|(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)/gu;
+const DISPLAY_DOLLAR_MATH_RE = /(?<!\\)\$\$([\s\S]*?)(?<!\\)\$\$/gu;
 const TELEGRAMIFY_SCRIPT = [
   "import json, sys",
   "from telegramify_markdown import telegramify_rich",
@@ -41,8 +42,22 @@ function normalizeTelegramifyMathDelimiters(markdown: string): string {
   const withoutLegacyTags = replaceOutsideMarkdownCode(markdown, LEGACY_TELEGRAM_MATH_RE, (match) =>
     match[1] !== undefined ? `$$${match[1]}$$` : `$${match[2] ?? ""}$`,
   );
-  return replaceOutsideMarkdownCode(withoutLegacyTags, BRACKET_MATH_RE, (match) =>
-    match[1] !== undefined ? `$$${match[1]}$$` : `$${match[2] ?? ""}$`,
+  const withDollarDelimiters = replaceOutsideMarkdownCode(
+    withoutLegacyTags,
+    BRACKET_MATH_RE,
+    (match) => (match[1] !== undefined ? `$$${match[1]}$$` : `$${match[2] ?? ""}$`),
+  );
+  return replaceOutsideMarkdownCode(
+    withDollarDelimiters,
+    DISPLAY_DOLLAR_MATH_RE,
+    (match) =>
+      // A standalone "=" inside a multiline $$ block is parsed as a Setext
+      // heading before telegramify-markdown recognizes math. Physical newlines
+      // are insignificant TeX whitespace; row separators such as \\ remain intact.
+      `$$${(match[1] ?? "")
+        .replace(/\r\n?/gu, "\n")
+        .replace(/[ \t]*\n+[ \t]*/gu, " ")
+        .trim()}$$`,
   );
 }
 
