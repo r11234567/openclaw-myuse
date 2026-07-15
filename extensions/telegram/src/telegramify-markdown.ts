@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 const TELEGRAMIFY_MARKDOWN_ENV = "OPENCLAW_TELEGRAMIFY_MARKDOWN";
+const TELEGRAMIFY_PYTHON_ENV = "OPENCLAW_TELEGRAMIFY_PYTHON";
 const TELEGRAMIFY_TIMEOUT_MS = 10_000;
 const TELEGRAMIFY_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const TELEGRAMIFY_CACHE_LIMIT = 64;
@@ -63,7 +64,8 @@ export function telegramifyMarkdownToRichHtmlChunks(markdown: string): readonly 
     return cached;
   }
 
-  const result = spawnSync("python3", ["-c", TELEGRAMIFY_SCRIPT], {
+  const pythonExecutable = process.env[TELEGRAMIFY_PYTHON_ENV]?.trim() || "python3";
+  const result = spawnSync(pythonExecutable, ["-c", TELEGRAMIFY_SCRIPT], {
     input: normalizeTelegramifyMathDelimiters(markdown),
     encoding: "utf8",
     timeout: TELEGRAMIFY_TIMEOUT_MS,

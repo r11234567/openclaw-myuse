@@ -45,10 +45,16 @@ jobs:
           frozen-lockfile: "true"
 
       - name: Install Telegram rich Markdown converter
-        run: >-
-          python3 -m pip install
-          pyromark==0.9.13
-          git+https://github.com/sudoskys/telegramify-markdown.git@ad2456037ac1dd3bcd06038915dac45a4430ff23
+        shell: bash
+        run: |
+          set -euo pipefail
+          python_bin="$(command -v python3)"
+          "$python_bin" -m pip install \
+            pyromark==0.9.13 \
+            git+https://github.com/sudoskys/telegramify-markdown.git@ad2456037ac1dd3bcd06038915dac45a4430ff23
+          "$python_bin" -c "import telegramify_markdown"
+          # zizmor: ignore[github-env] python_bin is resolved from the trusted runner PATH.
+          echo "OPENCLAW_TELEGRAMIFY_PYTHON=$python_bin" >> "$GITHUB_ENV"
 
       - name: Check changed-file formatting
         run: >-
