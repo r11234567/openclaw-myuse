@@ -1,10 +1,13 @@
 // Telegram tests cover channel actions.contract plugin behavior.
 import { installChannelActionsContractSuite } from "openclaw/plugin-sdk/channel-test-helpers";
 import type { OpenClawConfig } from "openclaw/plugin-sdk/config-contracts";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { telegramPlugin } from "../api.js";
 
 describe("telegram actions contract", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
   installChannelActionsContractSuite({
     plugin: telegramPlugin,
     cases: [
@@ -56,6 +59,23 @@ describe("telegram actions contract", () => {
     });
 
     expect(capabilities).toContain("inlineButtons");
+  });
+
+  it("advertises portable Markdown when the deterministic converter is enabled", () => {
+    vi.stubEnv("OPENCLAW_TELEGRAMIFY_MARKDOWN", "1");
+    const capabilities = telegramPlugin.agentPrompt?.messageToolCapabilities?.({
+      cfg: {
+        channels: {
+          telegram: {
+            botToken: "123:telegram-test-token",
+            richMessages: true,
+          },
+        },
+      } as OpenClawConfig,
+    });
+
+    expect(capabilities).toContain("richText");
+    expect(capabilities).toContain("portableMarkdown");
   });
 
   it("advertises rich send parameters without adding Telegram-only actions", () => {

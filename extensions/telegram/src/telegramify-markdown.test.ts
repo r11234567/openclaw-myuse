@@ -58,4 +58,25 @@ describe.skipIf(!telegramifyAvailable)("telegramify-markdown rich conversion", (
     expect(html).toContain("\\(literal\\)");
     expect(html).toContain("\\[also literal\\]");
   });
+
+  it("converts legacy Telegram math tags without changing code examples", () => {
+    process.env.OPENCLAW_TELEGRAMIFY_MARKDOWN = "1";
+    const chunks = telegramifyMarkdownToRichHtmlChunks(
+      [
+        String.raw`<tg-math-block>\begin{array}{cc}a & b \\ c & d\end{array}</tg-math-block>`,
+        "",
+        String.raw`<tg-math>x^2</tg-math>`,
+        "",
+        "`<tg-math>literal</tg-math>`",
+      ].join("\n"),
+    );
+
+    const html = chunks?.join("") ?? "";
+    expect(chunks).not.toBeNull();
+    expect(html).toContain(
+      String.raw`<tg-math-block>\begin{array}{cc}a & b \\ c & d\end{array}</tg-math-block>`,
+    );
+    expect(html).toContain("<tg-math>x^2</tg-math>");
+    expect(html).toContain("&lt;tg-math&gt;literal&lt;/tg-math&gt;");
+  });
 });

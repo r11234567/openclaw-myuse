@@ -819,6 +819,9 @@ export const telegramPlugin = createChatChannelPlugin({
         const selectedAccountId = accountId ?? resolveDefaultTelegramAccountId(cfg);
         if (mergeTelegramAccountConfig(cfg, selectedAccountId).richMessages === true) {
           capabilities.push("richText");
+          if (process.env.OPENCLAW_TELEGRAMIFY_MARKDOWN === "1") {
+            capabilities.push("portableMarkdown");
+          }
         }
         return capabilities;
       },

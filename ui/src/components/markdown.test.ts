@@ -560,6 +560,34 @@ PY
       expect(html).toBe("<p>The price is $50 and the total is USD 100.</p>\n");
     });
 
+    it("renders legacy Telegram math tags from existing transcripts", () => {
+      const html = toSanitizedMarkdownHtml(
+        [
+          String.raw`<tg-math>\frac{1}{2}</tg-math>`,
+          "",
+          String.raw`<tg-math-block>\begin{array}{cc}a & b \\ c & d\end{array}</tg-math-block>`,
+        ].join("\n"),
+      );
+      const fragment = htmlFragment(html);
+
+      expect(fragment.querySelectorAll(".katex")).toHaveLength(2);
+      expect(fragment.querySelector(".katex-display")).not.toBeNull();
+      expect(html).not.toContain("&lt;tg-math");
+    });
+
+    it("keeps legacy Telegram math tags literal inside code", () => {
+      const html = toSanitizedMarkdownHtml(
+        ["`<tg-math>x</tg-math>`", "", "```text", "<tg-math-block>y</tg-math-block>", "```"].join(
+          "\n",
+        ),
+      );
+      const fragment = htmlFragment(html);
+
+      expect(fragment.querySelector(".katex")).toBeNull();
+      expect(fragment.textContent).toContain("<tg-math>x</tg-math>");
+      expect(fragment.textContent).toContain("<tg-math-block>y</tg-math-block>");
+    });
+
     it("renders strikethrough", () => {
       const html = toSanitizedMarkdownHtml("This is ~~deleted~~ text");
       expect(html).toBe("<p>This is <s>deleted</s> text</p>\n");

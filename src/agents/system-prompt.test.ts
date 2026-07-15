@@ -1117,6 +1117,25 @@ describe("buildAgentSystemPrompt", () => {
     expect(plainTelegramPrompt).toContain("enable rich messages for this account/channel");
   });
 
+  it("uses portable Markdown and standard LaTeX for converted Telegram rich text", () => {
+    const prompt = buildAgentSystemPrompt({
+      workspaceDir: "/tmp/openclaw",
+      runtimeInfo: {
+        channel: "telegram",
+        capabilities: ["richText", "portableMarkdown"],
+      },
+    });
+
+    expect(prompt).toContain("Telegram rich ON with portable Markdown conversion");
+    expect(prompt).toContain("use LaTeX rather than plain-text approximations");
+    expect(prompt).toContain("`\\(...\\)` inline and `\\[...\\]` block");
+    expect(prompt).toContain("Preserve `\\\\` row separators");
+    expect(prompt).toContain("converts the final Markdown only at send time");
+    expect(prompt).not.toContain("<tg-math>");
+    expect(prompt).not.toContain("<tg-math-block>");
+    expect(prompt).not.toContain("<details><summary>");
+  });
+
   it("describes Telegram rich text for source replies without the message tool", () => {
     const prompt = buildAgentSystemPrompt({
       workspaceDir: "/tmp/openclaw",

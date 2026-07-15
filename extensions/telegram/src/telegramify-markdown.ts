@@ -1,13 +1,14 @@
 import { spawnSync } from "node:child_process";
+import { findCodeRegions, isInsideCode } from "openclaw/plugin-sdk/text-chunking";
 
 const TELEGRAMIFY_MARKDOWN_ENV = "OPENCLAW_TELEGRAMIFY_MARKDOWN";
 const TELEGRAMIFY_PYTHON_ENV = "OPENCLAW_TELEGRAMIFY_PYTHON";
 const TELEGRAMIFY_TIMEOUT_MS = 10_000;
 const TELEGRAMIFY_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const TELEGRAMIFY_CACHE_LIMIT = 64;
-const MARKDOWN_CODE_REGION_RE = /(```[\s\S]*?```|~~~[\s\S]*?~~~|`[^`\n]+`)/g;
-const DISPLAY_BRACKET_MATH_RE = /(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]/g;
-const INLINE_BRACKET_MATH_RE = /(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)/g;
+const LEGACY_TELEGRAM_MATH_RE =
+  /<tg-math-block>([\s\S]*?)<\/tg-math-block>|<tg-math>([\s\S]*?)<\/tg-math>/giu;
+const BRACKET_MATH_RE = /(?<!\\)\\\[([\s\S]*?)(?<!\\)\\\]|(?<!\\)\\\(([\s\S]*?)(?<!\\)\\\)/gu;
 const TELEGRAMIFY_SCRIPT = [
   "import json, sys",
   "from telegramify_markdown import telegramify_rich",
@@ -18,18 +19,31 @@ const TELEGRAMIFY_SCRIPT = [
 const conversionCache = new Map<string, readonly string[]>();
 let warnedUnavailable = false;
 
+function replaceOutsideMarkdownCode(
+  markdown: string,
+  pattern: RegExp,
+  replacer: (match: RegExpExecArray) => string,
+): string {
+  const codeRegions = findCodeRegions(markdown);
+  let output = "";
+  let cursor = 0;
+  for (const match of markdown.matchAll(pattern)) {
+    const start = match.index ?? 0;
+    const matched = match[0];
+    output += markdown.slice(cursor, start);
+    output += isInsideCode(start, codeRegions) ? matched : replacer(match);
+    cursor = start + matched.length;
+  }
+  return output + markdown.slice(cursor);
+}
+
 function normalizeTelegramifyMathDelimiters(markdown: string): string {
-  return markdown
-    .split(MARKDOWN_CODE_REGION_RE)
-    .map((part, index) => {
-      if (index % 2 === 1) {
-        return part;
-      }
-      return part
-        .replace(DISPLAY_BRACKET_MATH_RE, (_match, math: string) => `$$${math}$$`)
-        .replace(INLINE_BRACKET_MATH_RE, (_match, math: string) => `$${math}$`);
-    })
-    .join("");
+  const withoutLegacyTags = replaceOutsideMarkdownCode(markdown, LEGACY_TELEGRAM_MATH_RE, (match) =>
+    match[1] !== undefined ? `$$${match[1]}$$` : `$${match[2] ?? ""}$`,
+  );
+  return replaceOutsideMarkdownCode(withoutLegacyTags, BRACKET_MATH_RE, (match) =>
+    match[1] !== undefined ? `$$${match[1]}$$` : `$${match[2] ?? ""}$`,
+  );
 }
 
 function cacheConversion(markdown: string, chunks: readonly string[]): void {

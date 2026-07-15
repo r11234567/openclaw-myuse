@@ -21,6 +21,7 @@ import markdownItTaskLists from "markdown-it-task-lists";
 import "katex/dist/katex.min.css";
 import remend, { type RemendOptions } from "remend";
 import { stripUnsupportedCitationControlMarkers } from "../../../src/shared/text/citation-control-markers.js";
+import { findCodeRegions, isInsideCode } from "../../../src/shared/text/code-regions.js";
 import { routeIdFromPath } from "../app-route-paths.ts";
 import { resolveControlUiBasePath } from "../app/browser.ts";
 import { i18n, t } from "../i18n/index.ts";
@@ -442,6 +443,8 @@ const markdownCache = new Map<string, string>();
 const TAIL_LINK_BLUR_CLASS = "chat-link-tail-blur";
 const FENCE_OPEN_RE = /^[ \t]{0,3}(`{3,}|~{3,})/;
 const FENCE_CONTAINER_PREFIX_RE = /^[ \t]{0,3}(?:(?:>\s?)|(?:(?:[-+*]|\d{1,9}[.)])[ \t]+))/;
+const LEGACY_TELEGRAM_MATH_RE =
+  /<tg-math-block>([\s\S]*?)<\/tg-math-block>|<tg-math>([\s\S]*?)<\/tg-math>/giu;
 
 type MarkdownCodeBlockChrome = "copy" | "none";
 
@@ -735,6 +738,24 @@ function normalizeMarkdownImageLabel(text?: string | null): string {
 
 function normalizeMarkdownLineBreaks(value: string): string {
   return value.replace(/\r\n?|[\u2028\u2029]/g, "\n");
+}
+
+function normalizeLegacyTelegramMathTags(value: string): string {
+  const codeRegions = findCodeRegions(value);
+  let output = "";
+  let cursor = 0;
+  for (const match of value.matchAll(LEGACY_TELEGRAM_MATH_RE)) {
+    const start = match.index ?? 0;
+    const matched = match[0];
+    output += value.slice(cursor, start);
+    output += isInsideCode(start, codeRegions)
+      ? matched
+      : match[1] !== undefined
+        ? `\\[${match[1]}\\]`
+        : `\\(${match[2] ?? ""}\\)`;
+    cursor = start + matched.length;
+  }
+  return output + value.slice(cursor);
 }
 
 function formatTruncatedMarkdownInput(input: string): string {
@@ -1444,8 +1465,8 @@ export function toSanitizedMarkdownHtml(
   options: MarkdownRenderOptions = {},
 ): string {
   const renderOptions = normalizeMarkdownRenderOptions(options);
-  const rawInput = normalizeMarkdownLineBreaks(
-    stripUnsupportedCitationControlMarkers(markdownLocal),
+  const rawInput = normalizeLegacyTelegramMathTags(
+    normalizeMarkdownLineBreaks(stripUnsupportedCitationControlMarkers(markdownLocal)),
   );
   const input = rawInput.trim();
   if (!input) {
@@ -1492,8 +1513,8 @@ export function toStreamingMarkdownHtml(
   options: MarkdownRenderOptions = {},
 ): string {
   const renderOptions = normalizeMarkdownRenderOptions(options);
-  const rawInput = normalizeMarkdownLineBreaks(
-    stripUnsupportedCitationControlMarkers(markdownLocal),
+  const rawInput = normalizeLegacyTelegramMathTags(
+    normalizeMarkdownLineBreaks(stripUnsupportedCitationControlMarkers(markdownLocal)),
   );
   if (isMarkdownBlockArtText(rawInput)) {
     return renderSanitizedMarkdown(rawInput, renderOptions);
