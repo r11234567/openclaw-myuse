@@ -537,9 +537,7 @@ PY
         (annotation) => annotation.textContent ?? "",
       );
       expect(sourceAnnotations).toContain(String.raw`\frac{1}{2}`);
-      expect(sourceAnnotations).toContain(
-        String.raw`\begin{array}{cc}a & b \\ c & d\end{array}`,
-      );
+      expect(sourceAnnotations).toContain(String.raw`\begin{array}{cc}a & b \\ c & d\end{array}`);
     });
 
     it("renders math fences as display LaTeX instead of code", () => {

@@ -52,9 +52,7 @@ function warnUnavailable(message: string): void {
   );
 }
 
-export function telegramifyMarkdownToRichHtmlChunks(
-  markdown: string,
-): readonly string[] | null {
+export function telegramifyMarkdownToRichHtmlChunks(markdown: string): readonly string[] | null {
   if (process.env[TELEGRAMIFY_MARKDOWN_ENV] !== "1") {
     return null;
   }
