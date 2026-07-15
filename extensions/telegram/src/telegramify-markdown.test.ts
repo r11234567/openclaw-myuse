@@ -112,4 +112,17 @@ describe.skipIf(!telegramifyAvailable)("telegramify-markdown rich conversion", (
     expect(html).not.toContain("&lt;br");
     expect(html).not.toContain("\t");
   });
+
+  it("restores thematic breaks without changing code examples", () => {
+    process.env.OPENCLAW_TELEGRAMIFY_MARKDOWN = "1";
+    const chunks = telegramifyMarkdownToRichHtmlChunks(
+      ["before", "", "---", "", "`<hr/>`", "", "```html", "<hr/>", "```"].join("\n"),
+    );
+
+    const html = chunks?.join("") ?? "";
+    expect(chunks).not.toBeNull();
+    expect(html).toContain("<hr>");
+    expect(html.match(/&lt;hr\/&gt;/gu)).toHaveLength(2);
+    expect(html).toContain("<code>&lt;hr/&gt;</code>");
+  });
 });
