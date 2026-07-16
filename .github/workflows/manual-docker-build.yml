@@ -67,6 +67,10 @@ jobs:
           extensions/telegram/src/telegramify-markdown.ts
           ui/src/components/markdown.test.ts
           ui/src/components/markdown.ts
+          ui/src/lib/chat/chat-types.ts
+          ui/src/pages/chat/components/chat-thread.ts
+          ui/src/pages/chat/chat-thread.test.ts
+          ui/src/pages/chat/chat-thread.ts
           ui/src/styles/chat/text.css
           docs/channels/telegram.md
           docs/plugins/sdk-channel-plugins.md
@@ -112,7 +116,12 @@ jobs:
           src/infra/outbound/current-conversation-bindings.test.ts
 
       - name: Run focused Control UI test
-        run: pnpm --dir ui test src/components/markdown.test.ts
+        run: >-
+          pnpm --dir ui test
+          src/components/markdown.test.ts
+          src/pages/chat/chat-pane.test.ts
+          src/pages/chat/chat-thread.test.ts
+          src/pages/chat/chat-view.test.ts
 
   build:
     needs: verify

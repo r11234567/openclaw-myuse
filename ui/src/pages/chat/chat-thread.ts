@@ -12,7 +12,8 @@ import type {
   ToolCard,
 } from "../../lib/chat/chat-types.ts";
 import {
-  CHAT_HISTORY_RENDER_CHAR_BUDGET,
+  CHAT_HISTORY_RENDER_BATCH_SIZE,
+  CHAT_HISTORY_RENDER_CHAR_BUDGET_PER_BATCH,
   CHAT_HISTORY_RENDER_LIMIT,
 } from "../../lib/chat/chat-types.ts";
 import {
@@ -1011,9 +1012,7 @@ function rawMessageTimestamp(message: unknown): number | null {
 function chatItemTimestamp(item: ChatItem): number | null {
   switch (item.kind) {
     case "message":
-      return item.key === "chat:history:notice"
-        ? Number.NEGATIVE_INFINITY
-        : rawMessageTimestamp(item.message);
+      return rawMessageTimestamp(item.message);
     case "divider":
       return item.timestamp;
     case "stream":
@@ -1176,16 +1175,6 @@ function isHiddenToolMessage(message: unknown, showToolCalls: boolean): boolean 
   return safeNormalizeMessage(message)?.role.toLowerCase() === "toolresult";
 }
 
-function countVisibleHistoryMessages(messages: unknown[], showToolCalls: boolean): number {
-  let count = 0;
-  for (const message of messages) {
-    if (!isHiddenToolMessage(message, showToolCalls)) {
-      count += 1;
-    }
-  }
-  return count;
-}
-
 function resolveHistoryRenderLimit(limit: number | undefined, allowExpanded = false): number {
   if (typeof limit !== "number" || !Number.isFinite(limit)) {
     return CHAT_HISTORY_RENDER_LIMIT;
@@ -1202,6 +1191,11 @@ function resolveHistoryStartIndex(
   let visibleCount = 0;
   let renderChars = 0;
   let startIndex = messages.length;
+  // Grow the content budget with the count window so upward scrolling always
+  // reveals another bounded batch without dropping protection for huge rows.
+  const renderCharBudget =
+    Math.ceil(renderLimit / CHAT_HISTORY_RENDER_BATCH_SIZE) *
+    CHAT_HISTORY_RENDER_CHAR_BUDGET_PER_BATCH;
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
     if (isHiddenToolMessage(message, showToolCalls)) {
@@ -1210,9 +1204,9 @@ function resolveHistoryStartIndex(
     if (visibleCount >= renderLimit) {
       break;
     }
-    const remainingBudget = Math.max(1, CHAT_HISTORY_RENDER_CHAR_BUDGET - renderChars + 1);
+    const remainingBudget = Math.max(1, renderCharBudget - renderChars + 1);
     const messageChars = estimateMessageRenderChars(message, remainingBudget);
-    if (visibleCount > 0 && renderChars + messageChars > CHAT_HISTORY_RENDER_CHAR_BUDGET) {
+    if (visibleCount > 0 && renderChars + messageChars > renderCharBudget) {
       break;
     }
     renderChars += messageChars;
@@ -1280,25 +1274,6 @@ function buildChatItems(props: BuildChatItemsProps): Array<ChatItem | MessageGro
   }
   const historyStart = resolveHistoryStartIndex(history, props.showToolCalls, historyRenderLimit);
   const previewHistoryStart = expandHistoryStartForPersistedPreviews(history, historyStart);
-  const hiddenHistoryCount = countVisibleHistoryMessages(
-    history.slice(0, previewHistoryStart),
-    props.showToolCalls,
-  );
-  const visibleHistoryCount = countVisibleHistoryMessages(
-    history.slice(previewHistoryStart),
-    props.showToolCalls,
-  );
-  if (hiddenHistoryCount > 0) {
-    items.push({
-      kind: "message",
-      key: "chat:history:notice",
-      message: {
-        role: "system",
-        content: `Showing last ${visibleHistoryCount} messages (${hiddenHistoryCount} hidden).`,
-        timestamp: Date.now(),
-      },
-    });
-  }
   for (let i = previewHistoryStart; i < history.length; i++) {
     const msg = history[i];
     const normalized = safeNormalizeMessage(msg);

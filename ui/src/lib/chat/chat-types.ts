@@ -58,7 +58,8 @@ export type ChatItem =
   | { kind: "reading-indicator"; key: string; startedAt: number };
 
 export const CHAT_HISTORY_RENDER_LIMIT = 100;
-export const CHAT_HISTORY_RENDER_CHAR_BUDGET = 240_000;
+export const CHAT_HISTORY_RENDER_BATCH_SIZE = 30;
+export const CHAT_HISTORY_RENDER_CHAR_BUDGET_PER_BATCH = 240_000;
 
 export type ChatStreamSegment = {
   text: string;

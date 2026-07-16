@@ -15,7 +15,10 @@ import {
   markdownFileLinkFromEvent,
 } from "../../../components/markdown.ts";
 import { i18n, t } from "../../../i18n/index.ts";
-import { CHAT_HISTORY_RENDER_LIMIT } from "../../../lib/chat/chat-types.ts";
+import {
+  CHAT_HISTORY_RENDER_BATCH_SIZE,
+  CHAT_HISTORY_RENDER_LIMIT,
+} from "../../../lib/chat/chat-types.ts";
 import type {
   ChatQueueItem,
   ChatStreamSegment,
@@ -67,8 +70,7 @@ import { renderWelcomeState, resolveAssistantDisplayAvatar } from "./chat-welcom
 
 const pinnedMessagesMap = new Map<string, PinnedMessages>();
 const deletedMessagesMap = new Map<string, DeletedMessages>();
-const INITIAL_CHAT_HISTORY_RENDER_WINDOW = 30;
-const CHAT_HISTORY_RENDER_WINDOW_BATCH = 30;
+const INITIAL_CHAT_HISTORY_RENDER_WINDOW = CHAT_HISTORY_RENDER_BATCH_SIZE;
 const CHAT_HISTORY_RENDER_EXPAND_SCROLL_TOP_PX = 48;
 
 type ReplyTarget = {
@@ -283,7 +285,7 @@ function resolveChatHistoryRenderWindow(
     const grewBy = messages.length - previousCount;
     if (state.historyRenderLimit >= previousCount) {
       state.historyRenderLimit = cap;
-    } else if (grewBy > 0 && grewBy <= CHAT_HISTORY_RENDER_WINDOW_BATCH) {
+    } else if (grewBy > 0 && grewBy <= CHAT_HISTORY_RENDER_BATCH_SIZE) {
       state.historyRenderLimit = Math.min(cap, state.historyRenderLimit + grewBy);
     } else {
       state.historyRenderLimit = Math.min(
@@ -334,7 +336,7 @@ function maybeExpandChatHistoryRenderWindow(
   scheduleChatHistoryRenderAnchorPreservation(state, target);
   state.historyRenderLimit = Math.min(
     cap,
-    state.historyRenderLimit + CHAT_HISTORY_RENDER_WINDOW_BATCH,
+    state.historyRenderLimit + CHAT_HISTORY_RENDER_BATCH_SIZE,
   );
   requestUpdate();
 }
@@ -380,7 +382,7 @@ function scheduleChatHistoryRenderWindowFill(
     }
     state.historyRenderLimit = Math.min(
       nextCap,
-      state.historyRenderLimit + CHAT_HISTORY_RENDER_WINDOW_BATCH,
+      state.historyRenderLimit + CHAT_HISTORY_RENDER_BATCH_SIZE,
     );
     requestUpdate();
     scrollToBottom();
